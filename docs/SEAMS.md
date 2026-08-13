@@ -109,6 +109,13 @@ audit row.
 - **No credentials.** The payload and every gem log line exclude the bearer token and any
   credential — a standing rule guarded by CI grep (ADR-0004, R4).
 
+- **No tenant — recover it from `Current`.** The payload carries no tenant by design. It does
+  not need to: the subscriber runs **synchronously on the request thread** (`ActiveSupport::
+  Notifications.instrument` publishes inline, not on a background thread), inside the
+  controller's tenant-shard wrap, so `Current.tenant` still holds the request's tenant when
+  your subscriber runs. Read it from `Current` to attribute the audit row — see
+  [`USAGE.md` §6](USAGE.md).
+
 Subscribe app-side (typically in `config/initializers/rails_mcp.rb`):
 
 ```ruby
@@ -130,8 +137,11 @@ identity (R9).
 ## What is deliberately NOT a seam
 
 - **Tenancy** — no `around`/scope hook, no tenant concept (R11, ADR-0004). If your app is
-  multi-tenant, scoping is ordinary app code inside `perform` / `ApplicationMcpTool`, taking
-  the tenant from the authenticated context, never a free tool arg.
+  multi-tenant, scoping is ordinary app code at the **controller**, wrapping `handle_request`
+  in the tenant's shard so **both** `authorize` and `perform` run in-shard (`authorize` runs
+  before `perform` and also needs the shard) — take the tenant from the authenticated context,
+  never a free tool arg. The how-to is [`USAGE.md` §6](USAGE.md). The payload below carries
+  **no tenant** by design; you recover it in the subscriber via `Current` (next section).
 - **Audit persistence, permission model, identity resolution** — all app-owned. The gem
   defines *where* they happen (these two seams); the app defines *what* they are.
 

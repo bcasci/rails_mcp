@@ -380,19 +380,75 @@ seam; the app decides.
 ## 6. Tenancy (only if your app is multi-tenant) — R11
 
 The gem has **no tenant concept** and does not presume you are multi-tenant. If you are,
-scoping is ordinary app code you add in `ApplicationMcpTool` / `perform` — take the tenant
-from the **authenticated context**, never a free tool arg, and run tool bodies inside its
-scope:
+scoping is ordinary app code you add — take the tenant from the **authenticated context**,
+never a free tool arg. If your app is single-tenant, ignore this section entirely.
+
+### Scope at the controller, wrapping `handle_request` — not in `perform`
+
+Scope at the **controller**, wrapping `handle_request` in your tenant's shard, so **both**
+`authorize` and `perform` run in-shard. The invoke pipeline runs `authorize` **before**
+`perform`, and `authorize` typically also queries in-shard (loading the policy record, the
+acting user's tenant row). Scoping inside `perform` alone leaves `authorize` running against
+the wrong shard — a subtle, dangerous gap. Put the wrap once, in `McpController#handle`:
 
 ```ruby
-def perform(**args)
-  current_tenant.with_shard { super }
+def handle
+  user = authenticate_acting_user!
+
+  server = MCP::Server.new(
+    name: "rails_mcp",
+    tools: RailsMcp.registry.tools,
+    server_context: {user: user}
+  )
+  transport = MCP::Server::Transports::StreamableHTTPTransport.new(server, stateless: true)
+
+  # Wrap the whole request in the tenant's shard so BOTH authorize and perform
+  # run in-shard. Take the tenant from the authenticated context, never a tool arg.
+  status, headers, body =
+    Current.tenant.with_shard { transport.handle_request(request) }
+
+  headers.each { |key, value| response.headers[key] = value }
+  self.response_body = body
+  self.status = status
 end
 ```
 
+The stamped `McpController` ships this as an optional, clearly-marked block you uncomment
+(spec 0005 R3). Because the wrap is at the controller, individual tools' `perform` bodies
+need no per-tool `with_shard` — they already run in the active shard.
+
+### The canonical example is tenant-safe
+
+The read-only tool in section 4 (`Household.find(household_id)`) is safe **because** the
+request already runs inside the tenant's shard from the controller wrap above — the find
+resolves against the tenant's data, not a global table. In a multitenant app an **unscoped
+global `Model.find`** run outside any shard is **unsafe**: it can read another tenant's row.
+Rely on the controller-level shard wrap (or an explicitly tenant-scoped relation); never a
+bare cross-tenant find.
+
 A tool that accepts `tenant_id` as a free, unauthorized arg is a highest-severity defect your
-app must prevent — the gem cannot, because it never sees tenants. If your app is single-tenant,
-ignore this entirely.
+app must prevent — the gem cannot, because it never sees tenants.
+
+### Recovering the tenant in the audit subscriber
+
+The frozen `invoke.rails_mcp` payload carries **no tenant** by design (SEAMS.md). You do not
+need it in the payload: the subscriber runs **synchronously on the request thread**, inside the
+same controller shard wrap, so the tenant is still recoverable from `Current`:
+
+```ruby
+ActiveSupport::Notifications.subscribe(RailsMcp::Instrumentation::EVENT) do |*_args, payload|
+  McpAuditLog.create!(
+    tenant: Current.tenant,          # recovered from the request thread, not the payload
+    user: payload[:user],
+    tool: payload[:tool],
+    args: payload[:args],
+    outcome: payload.key?(:error) ? "error" : "ok"
+  )
+end
+```
+
+Because the event is published and consumed synchronously (not on a background thread),
+`Current` still holds the request's tenant when the subscriber runs.
 
 ---
 

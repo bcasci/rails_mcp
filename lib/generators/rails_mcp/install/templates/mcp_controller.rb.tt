@@ -1,8 +1,12 @@
 # frozen_string_literal: true
 
 # McpController is the app-owned HTTP entry point in front of the MCP transport.
-# It inherits ApplicationController so it reuses YOUR app's existing auth stack
-# (Devise, session, a bearer token — whatever ApplicationController provides).
+# It inherits ApplicationController so it reuses YOUR app's infrastructure
+# (request/response, logging, middleware). It is a MACHINE endpoint, not a
+# browser one: the inherited browser-oriented filters below (CSRF, an auth
+# before_action that 302-redirects to a login page) are NOT appropriate here and
+# are turned off / must be skipped — do not assume ApplicationController's
+# before_action stack works unchanged for this token endpoint.
 #
 # This file is APP-OWNED and yours to edit. The rails_mcp gem ships no
 # authentication and no policy (ADR-0004): it defines *where* authentication
@@ -13,6 +17,23 @@
 # so every request is denied and no tool runs until you wire your real check.
 # That is intentional: a misconfigured install denies rather than exposes.
 class McpController < ApplicationController
+  # CSRF is a browser defense (it validates a token stored in the session). An MCP
+  # client is a machine sending a cookieless JSON POST with no CSRF token; if your
+  # ApplicationController has `protect_from_forgery with: :exception`, every request
+  # here would raise InvalidAuthenticityToken. Turn it off for this machine endpoint
+  # and rely on the authentication seam below instead.
+  skip_forgery_protection
+
+  # === SKIP INHERITED BROWSER AUTH FILTERS (edit for your app) ==============
+  # If ApplicationController runs a browser-oriented auth before_action (e.g. Devise
+  # `authenticate_user!`, or your own filter that 302-redirects to a login page),
+  # it will REDIRECT a machine MCP client instead of letting it authenticate below.
+  # Skip it here and let `authenticate_acting_user!` be the sole check for /mcp:
+  #
+  #   skip_before_action :authenticate_user!   # Devise, or your own browser auth filter
+  #
+  # Leave this commented until you know which inherited filters your app applies.
+
   # One action serves every MCP request verb (POST, GET, DELETE). It authenticates
   # the request, resolves the acting staff user, then serves the request on the
   # official `mcp` gem's public per-request pattern. The transport — not this action —
@@ -32,11 +53,32 @@ class McpController < ApplicationController
       server_context: {user: user}
     )
 
-    # The stateless streamable-HTTP transport is the `mcp` gem's Rack transport. Pass
-    # transport options here (allowed_hosts:, allowed_origins:, dns_rebinding_protection:)
-    # for your real deploy. `handle_request` takes this controller's request and returns
-    # a Rack response triple.
-    transport = MCP::Server::Transports::StreamableHTTPTransport.new(server, stateless: true)
+    # The stateless streamable-HTTP transport is the `mcp` gem's Rack transport.
+    # `allowed_hosts:` widens the SDK's DNS-rebinding guard beyond loopback to YOUR
+    # app's host allow-list, so a real production Host (e.g. "boswell.fly.dev", set in
+    # config.hosts) is not rejected with `403 Forbidden: Invalid Host header`. We pass
+    # only the String entries of config.hosts (it may also hold Regexp/IPAddr, which the
+    # guard cannot compare). Add `allowed_origins:` / `dns_rebinding_protection:` here
+    # for your deploy. `handle_request` takes this controller's request and returns a
+    # Rack response triple.
+    transport = MCP::Server::Transports::StreamableHTTPTransport.new(
+      server,
+      stateless: true,
+      allowed_hosts: Rails.application.config.hosts.grep(String)
+    )
+
+    # === OPTIONAL: TENANT / SHARD SCOPING (edit for your app) ================
+    # If your app is sharded-multitenant, wrap `handle_request` in the tenant's shard
+    # so BOTH `authorize` and `perform` run in-shard — the gem's invoke pipeline runs
+    # `authorize` before `perform`, and `authorize` needs the shard too, so scoping
+    # inside a single tool's `perform` is too late. Resolve the tenant from the acting
+    # user or the request, then:
+    #
+    #   status, headers, body = Current.tenant.with_shard do
+    #     transport.handle_request(request)
+    #   end
+    #
+    # The unscoped default below is correct for single-tenant apps.
     status, headers, body = transport.handle_request(request)
 
     # Render the Rack triple back through the controller. Customize rendering here.

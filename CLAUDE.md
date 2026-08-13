@@ -80,3 +80,10 @@ Gotchas:
   `serve` reached the server that way because the pinned `mcp` had no public setter; the public
   controller pattern (`MCP::Server.new(server_context:)` per request) removes the need. This is
   a machine-checkable standing constraint (ADR-0008) — keep `lib/` free of `mcp` internals.
+- The DSL yields to an explicitly-set `input_schema`/`annotations` (ADR-0007): `Args#input_schema`
+  is both getter and setter (`input_schema(properties:, required:)` delegates to the `mcp` macro
+  and records `@input_schema_value`; the no-arg getter returns that explicit value or builds from
+  `arg`s). Gotcha: `MCP::Tool.to_h` and the call path read `input_schema_value`, NOT the
+  `input_schema` getter — so `Args` must also override `input_schema_value` to return the
+  `arg`-built schema, or an `arg`-only tool advertises an empty schema. When bumping `mcp`,
+  re-check that `to_h`/the call path still read `input_schema_value`.

@@ -35,6 +35,19 @@ class InstallGeneratorTest < Rails::Generators::TestCase
     assert_file "config/initializers/rails_mcp.rb"
   end
 
+  # spec 0004 R3: the generated default registers centrally in the initializer;
+  # `expose!` is an alternative, not the generated default. Guards against a future
+  # change that quietly makes co-located `expose!` the stamped default.
+  def test_default_registration_is_central_not_expose
+    with_routes_file
+    run_generator
+    assert_file "config/initializers/rails_mcp.rb", /RailsMcp\.registry\.register\(/
+    assert_file "app/mcp/example_read_only_tool.rb" do |content|
+      refute_match(/expose!/, content,
+        "the generated example tool must register centrally, not via expose!")
+    end
+  end
+
   # R8: the generator creates one read-only example tool.
   def test_creates_example_read_only_tool
     with_routes_file
@@ -180,6 +193,89 @@ class InstallGeneratorTest < Rails::Generators::TestCase
       "post-run output must warn the /mcp endpoint is unauthenticated")
     assert_match(/mcp_controller\.rb|McpController/, output,
       "post-run notice must name the McpController file")
+  end
+
+  # R2 (CSRF): the stamped controller calls skip_forgery_protection so a cookieless
+  # JSON POST from a machine client is not rejected with InvalidAuthenticityToken
+  # under an ApplicationController with `protect_from_forgery with: :exception`.
+  def test_mcp_controller_skips_forgery_protection
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb", /^\s*skip_forgery_protection\b/
+  end
+
+  # R2 (Host): the stamped controller passes allowed_hosts: from the app's host
+  # allow-list so a non-loopback production Host in config.hosts is not 403'd by the
+  # SDK DNS-rebinding guard.
+  def test_mcp_controller_passes_allowed_hosts_from_config
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb",
+      /allowed_hosts:\s*Rails\.application\.config\.hosts/
+  end
+
+  # R2 (Host): only String entries of config.hosts are passed — the guard down-cases
+  # entries and cannot compare a Regexp/IPAddr, so the template filters to strings.
+  def test_mcp_controller_filters_config_hosts_to_strings
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb",
+      /Rails\.application\.config\.hosts\.grep\(String\)/
+  end
+
+  # R2 (auth filters): the controller carries a marked comment guiding the app to
+  # skip_before_action any inherited browser auth filter that would 302-redirect a
+  # machine client.
+  def test_mcp_controller_guides_skip_before_action_for_browser_auth
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb" do |content|
+      assert_match(/skip_before_action/, content,
+        "controller must guide skipping inherited browser auth before_actions")
+      assert_match(/302|redirect/i, content,
+        "the guidance must explain a browser auth filter would redirect a machine client")
+    end
+  end
+
+  # R2 (inheritance comment): the inheritance comment no longer implies the app's
+  # before_action stack works unchanged for this token endpoint.
+  def test_mcp_controller_inheritance_comment_corrected
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb" do |content|
+      assert_match(/machine endpoint/i, content,
+        "the inheritance comment must mark this as a machine (not browser) endpoint")
+      refute_match(/reuses YOUR app's existing auth stack/i, content,
+        "the inheritance comment must not imply the app's auth stack works unchanged")
+    end
+  end
+
+  # R3: the controller documents, as an optional marked block, wrapping handle_request
+  # in the tenant's shard (Current.tenant.with_shard) so both authorize and perform
+  # run in-shard.
+  def test_mcp_controller_documents_with_shard_wrap
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb" do |content|
+      assert_match(/with_shard/, content,
+        "controller must document wrapping handle_request in the tenant shard")
+      assert_match(/authorize/i, content,
+        "the shard guidance must explain authorize (not just perform) needs the shard")
+      assert_match(/OPTIONAL/i, content,
+        "the shard wrap must be a clearly-marked optional block")
+    end
+  end
+
+  # R3: the with_shard wrap is guidance only — the stamped default is unscoped, so the
+  # gem presumes no tenancy (no active tenant code stamped by default).
+  def test_mcp_controller_shard_wrap_is_commented_not_active
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb" do |content|
+      code_lines = content.lines.reject { |l| l.strip.empty? || l.strip.start_with?("#") }
+      refute(code_lines.any? { |l| l.include?("with_shard") },
+        "no active with_shard code may be stamped — it is optional guidance (R3/R11)")
+    end
   end
 
   # R7: the stamped ApplicationMcpTool is fail-closed — it does not silently permit.

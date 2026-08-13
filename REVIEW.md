@@ -30,6 +30,16 @@ needs a `file:line` citation — no speculative findings.
   unrealistic stub is a real bug hiding. (Interaction assertions ARE correct for fire-and-forget
   side effects — "notification fired exactly once / not on deny" — and command ordering; don't
   flag those.)
+- **Diverging/stub harness is a finding.** An integration test must exercise the stamped/
+  generated artifact verbatim. Flag a test that adds what the artifact omits (an `allowed_hosts`,
+  a header), swaps the real base class (`ActionController::Base` for `ApplicationController`), or
+  stubs the hard part (a fake tenant with no real `with_shard`) — the divergence hides the bug
+  it claims to cover. The verbatim-template fixture (`test/integration/fixture_app/`) is the bar.
+- **Integration-hazard completeness (Important, not a nit).** For a change on the gem↔app seam,
+  check the real install path is covered: dev reload (Zeitwerk), cold boot, production
+  `Host`/proxy, a second app profile (multitenant/sharded), host middleware (CSRF). Review
+  grades conformance to the criteria that exist — so a missing criterion here ships green unless
+  you name it. Ask "what does a fresh, real install still fail at?" and flag the gap.
 
 ## Spec adherence
 

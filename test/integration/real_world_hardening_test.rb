@@ -8,10 +8,9 @@ require "json"
 # T3 / spec 0005 R5, R6 — the verbatim-template integration proof. A minimal but REAL
 # Rails app (test/integration/fixture_app) boots the *rendered generator templates loaded
 # verbatim* as its `McpController` and `ApplicationMcpTool`, under a real
-# `ApplicationController` with `protect_from_forgery with: :exception`, a production Host in
-# `config.hosts`, and a sharded-tenant stand-in with an observable `with_shard`. Every gap
-# the earlier tests missed (real CSRF, real production Host, a real ApplicationController,
-# a redefined-class reload, a real shard) is exercised end to end here.
+# `ApplicationController` with `protect_from_forgery with: :exception` and a production Host
+# in `config.hosts`. Every gap the earlier tests missed (real CSRF, real production Host, a
+# real ApplicationController, a redefined-class reload) is exercised end to end here.
 #
 # The R6 verbatim rule: a test may not pass by diverging from the stamped code. The base
 # `McpController`/`ApplicationMcpTool` are loaded byte-for-byte from the `.tt` files and a
@@ -24,44 +23,6 @@ class RealWorldHardeningTest < Minitest::Test
 
   StaffUser = Struct.new(:id, :name)
   ALICE = StaffUser.new(1, "Alice")
-
-  # The tenant-wrap edit the stamped controller DOCUMENTS (as a commented, optional block).
-  # The shard proof runs a controller carrying exactly this snippet, and a guard test
-  # asserts the snippet is the one the template documents — so the shard proof cannot
-  # diverge from the stamped guidance (R6).
-  DOCUMENTED_SHARD_WRAP = <<~RUBY
-    status, headers, body = Current.tenant.with_shard do
-      transport.handle_request(request)
-    end
-  RUBY
-
-  # The stamped default (unscoped) line the wrap replaces.
-  STAMPED_UNSCOPED_LINE = "status, headers, body = transport.handle_request(request)"
-
-  # A read-only tool that records the shard active during BOTH authorize and perform, so
-  # the R3 proof can assert the wrap covers the whole invoke pipeline. It subclasses the
-  # verbatim ApplicationMcpTool and overrides only the fail-closed authorize seam — the
-  # app's own wiring, never an edit to the stamped base.
-  class ShardObservingTool < ApplicationMcpTool
-    tool_name "shard_probe"
-    description "Report the shard active during authorize and perform (read-only)."
-    read_only!
-
-    class << self
-      attr_accessor :authorize_shard, :perform_shard
-    end
-
-    def authorize(user:, args:, tool:)
-      raise RailsMcp::NotAuthorized, "no staff user" if user.nil?
-
-      self.class.authorize_shard = FixtureApp::Tenant.active_shard
-    end
-
-    def perform(**)
-      self.class.perform_shard = FixtureApp::Tenant.active_shard
-      text_response("perform shard #{FixtureApp::Tenant.active_shard.inspect}")
-    end
-  end
 
   # A plain read-only tool for the CSRF/Host/reload/fail-closed proofs.
   class EchoTool < ApplicationMcpTool
@@ -97,18 +58,6 @@ class RealWorldHardeningTest < Minitest::Test
     end
   end
 
-  # The shard-wrapping controller: applies the DOCUMENTED shard wrap the template guides.
-  # It does not duplicate the stamped `handle` (which would risk drift from the verbatim
-  # base); it wraps the verbatim `handle` (via `super`) in `Current.tenant.with_shard`.
-  # Because the verbatim `handle` runs `handle_request` — which drives BOTH authorize and
-  # perform — inside this shard, both observe the active shard, exactly what the template's
-  # documented `Current.tenant.with_shard { transport.handle_request(request) }` achieves.
-  class ShardWrappingController < TestMcpController
-    def handle
-      Current.tenant.with_shard { super }
-    end
-  end
-
   def app
     @app || Rails.application
   end
@@ -120,9 +69,6 @@ class RealWorldHardeningTest < Minitest::Test
     end
     RailsMcp.registry.clear
     TestMcpController.resolver = nil
-    FixtureApp::Current.reset
-    ShardObservingTool.authorize_shard = nil
-    ShardObservingTool.perform_shard = nil
     @app = nil
     route_to(TestMcpController)
   end
@@ -131,7 +77,6 @@ class RealWorldHardeningTest < Minitest::Test
     ActiveSupport::Notifications.unsubscribe(@subscriber)
     RailsMcp.registry.clear
     TestMcpController.resolver = nil
-    FixtureApp::Current.reset
     route_to(TestMcpController)
   end
 
@@ -181,20 +126,6 @@ class RealWorldHardeningTest < Minitest::Test
     assert_includes template, "class ApplicationMcpTool < RailsMcp::Tool"
     assert_equal template, File.read(FixtureApp::APPLICATION_MCP_TOOL_TEMPLATE),
       "the exercised ApplicationMcpTool must be the rendered template, byte for byte"
-  end
-
-  # R6: the shard proof runs the wrap the template DOCUMENTS, not an invented one. The
-  # documented snippet (de-commented) must appear verbatim in the stamped controller's
-  # comment, so the shard test cannot pass by diverging from the guidance.
-  def test_documented_shard_wrap_matches_the_template_guidance
-    template = FixtureApp.template_source(FixtureApp::MCP_CONTROLLER_TEMPLATE)
-
-    DOCUMENTED_SHARD_WRAP.lines.map(&:strip).reject(&:empty?).each do |line|
-      assert_includes template, line,
-        "the shard-wrap line #{line.inspect} must be the block the template documents"
-    end
-    assert_includes template, STAMPED_UNSCOPED_LINE,
-      "the stamped default must be the unscoped handle_request line"
   end
 
   # ---- R2 CSRF ---------------------------------------------------------------------
@@ -279,27 +210,6 @@ class RealWorldHardeningTest < Minitest::Test
     assert_equal 200, second.status, "a reloaded tool must not raise ToolNotUnique"
     names = JSON.parse(second.body).dig("result", "tools").map { |t| t["name"] }
     assert_equal ["reloadable"], names, "the reloaded tool is served exactly once"
-  end
-
-  # ---- R3 shard --------------------------------------------------------------------
-
-  # R3: with the controller wrapping handle_request in Current.tenant.with_shard, BOTH
-  # authorize and perform observe the active shard. The wrap is the one the template
-  # documents (asserted by test_documented_shard_wrap_matches_the_template_guidance).
-  def test_shard_wrap_covers_both_authorize_and_perform
-    route_to(ShardWrappingController)
-    tenant = FixtureApp::Tenant.new(:shard_7)
-    FixtureApp::Current.tenant = tenant
-    ShardWrappingController.resolver = ->(_req) { ALICE }
-    RailsMcp.registry.register(ShardObservingTool)
-
-    response = post_mcp("tools/call", {name: "shard_probe", arguments: {}})
-
-    assert_equal 200, response.status
-    assert_equal :shard_7, ShardObservingTool.authorize_shard,
-      "authorize must run inside the tenant shard (R3: authorize needs the shard too)"
-    assert_equal :shard_7, ShardObservingTool.perform_shard,
-      "perform must run inside the tenant shard"
   end
 
   # ---- fail-closed (spec 0002 R2, no regression) -----------------------------------

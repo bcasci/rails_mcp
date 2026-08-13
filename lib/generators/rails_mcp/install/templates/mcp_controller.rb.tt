@@ -67,18 +67,19 @@ class McpController < ApplicationController
       allowed_hosts: Rails.application.config.hosts.grep(String)
     )
 
-    # === OPTIONAL: TENANT / SHARD SCOPING (edit for your app) ================
-    # If your app is sharded-multitenant, wrap `handle_request` in the tenant's shard
-    # so BOTH `authorize` and `perform` run in-shard — the gem's invoke pipeline runs
-    # `authorize` before `perform`, and `authorize` needs the shard too, so scoping
-    # inside a single tool's `perform` is too late. Resolve the tenant from the acting
-    # user or the request, then:
+    # === OPTIONAL: REQUEST-SCOPED CONTEXT (edit for your app) ================
+    # The gem's invoke pipeline runs `authorize` before `perform` within this same
+    # `handle_request` call. If your app needs a request-scoped context that BOTH
+    # `authorize` and `perform` see, wrap `handle_request` here to scope the whole
+    # call — scoping inside a single tool's `perform` is too late, because
+    # `authorize` has already run. Resolve the context from the acting user or the
+    # request, then wrap it:
     #
-    #   status, headers, body = Current.tenant.with_shard do
+    #   status, headers, body = SomeContext.wrap do
     #     transport.handle_request(request)
     #   end
     #
-    # The unscoped default below is correct for single-tenant apps.
+    # The unscoped default below is correct when no such context is needed.
     status, headers, body = transport.handle_request(request)
 
     # Render the Rack triple back through the controller. Customize rendering here.

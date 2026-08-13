@@ -44,23 +44,4 @@ class ApplicationMcpTool < RailsMcp::Tool
   # your own audit row so the log answers "which human ran this" — attributed to
   # `user`, never to a generic AI/bot identity. The payload never carries the bearer
   # token or any credential.
-
-  # === TENANT SCOPING (optional — only if your app is multi-tenant) =======
-  # The gem has NO tenant concept and does not presume you are multi-tenant. If you
-  # are, scoping is ordinary app code YOU add — never a free tool arg. Take the
-  # tenant from the authenticated context.
-  #
-  # Scope at the CONTROLLER, not here in `perform`. The invoke pipeline runs
-  # `authorize` BEFORE `perform`, and `authorize` also queries in-shard (e.g. to
-  # load the policy record); scoping inside `perform` alone leaves `authorize`
-  # running against the wrong shard. Wrap `handle_request` in your tenant scope in
-  # McpController so BOTH `authorize` and `perform` run in-shard, e.g.:
-  #
-  #   # in McpController#handle (app/controllers/mcp_controller.rb):
-  #   Current.tenant.with_shard do
-  #     status, headers, body = transport.handle_request(request)
-  #   end
-  #
-  # See docs/USAGE.md "Tenancy" for the full controller wrap. If your app is
-  # single-tenant, ignore this section entirely.
 end

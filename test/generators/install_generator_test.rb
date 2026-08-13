@@ -250,31 +250,27 @@ class InstallGeneratorTest < Rails::Generators::TestCase
     end
   end
 
-  # R3: the controller documents, as an optional marked block, wrapping handle_request
-  # in the tenant's shard (Current.tenant.with_shard) so both authorize and perform
-  # run in-shard.
-  def test_mcp_controller_documents_with_shard_wrap
+  # R2: the controller documents the neutral pipeline-ordering fact — authorize runs
+  # before perform, and a whole-call request-scoped context wraps handle_request.
+  def test_mcp_controller_documents_neutral_request_scope_fact
     with_routes_file
     run_generator
     assert_file "app/controllers/mcp_controller.rb" do |content|
-      assert_match(/with_shard/, content,
-        "controller must document wrapping handle_request in the tenant shard")
-      assert_match(/authorize/i, content,
-        "the shard guidance must explain authorize (not just perform) needs the shard")
-      assert_match(/OPTIONAL/i, content,
-        "the shard wrap must be a clearly-marked optional block")
+      assert_match(/`authorize`.*before.*`perform`/i, content,
+        "controller must document that authorize runs before perform")
+      assert_match(/wrap `handle_request`/i, content,
+        "controller must document wrapping handle_request to scope the whole call")
     end
   end
 
-  # R3: the with_shard wrap is guidance only — the stamped default is unscoped, so the
-  # gem presumes no tenancy (no active tenant code stamped by default).
-  def test_mcp_controller_shard_wrap_is_commented_not_active
+  # R2: the neutral fact carries no tenancy words — no tenant/shard/Current.tenant.
+  def test_mcp_controller_carries_no_tenancy_words
     with_routes_file
     run_generator
     assert_file "app/controllers/mcp_controller.rb" do |content|
-      code_lines = content.lines.reject { |l| l.strip.empty? || l.strip.start_with?("#") }
-      refute(code_lines.any? { |l| l.include?("with_shard") },
-        "no active with_shard code may be stamped — it is optional guidance (R3/R11)")
+      refute_match(/tenant/i, content, "no tenant word may appear in the stamped controller")
+      refute_match(/shard/i, content, "no shard word may appear in the stamped controller")
+      refute_match(/multitenan/i, content, "no multitenancy word may appear in the stamped controller")
     end
   end
 
@@ -305,18 +301,6 @@ class InstallGeneratorTest < Rails::Generators::TestCase
     with_routes_file
     run_generator
     assert_file "app/mcp/application_mcp_tool.rb", /def authorize\(user:, args:, tool:\)/
-  end
-
-  # R11: the gem presumes no tenancy — scoping is a commented, optional note, never
-  # active tenant code stamped by default.
-  def test_no_active_tenant_code_stamped
-    with_routes_file
-    run_generator
-    assert_file "app/mcp/application_mcp_tool.rb" do |content|
-      code_lines = content.lines.reject { |l| l.strip.empty? || l.strip.start_with?("#") }
-      refute(code_lines.any? { |l| l.include?("with_shard") },
-        "no active tenant/shard code may be stamped (R11: no presumed tenancy)")
-    end
   end
 
   # R8: the example tests express authorization denial and audit-row-written as the

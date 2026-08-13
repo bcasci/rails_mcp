@@ -5,8 +5,8 @@ require_relative "rails_mcp/version"
 # `rails_mcp` — a thin conventions-and-seams layer over the official `mcp` gem
 # that exposes a hand-picked allow-list of Rails app actions to an AI client
 # over MCP. The gem ships the tool DSL and two seams (`authorize` and the
-# `invoke.rails_mcp` notification); each app owns authorization, audit, identity,
-# and any tenant scoping (ADR-0004). Protocol plumbing — JSON-RPC, the Rack
+# `invoke.rails_mcp` notification); each app owns authorization, audit, and
+# identity (ADR-0004). Protocol plumbing — JSON-RPC, the Rack
 # transport, tool schemas, and annotations — is delegated to `mcp` (ADR-0001).
 module RailsMcp
   class Error < StandardError; end

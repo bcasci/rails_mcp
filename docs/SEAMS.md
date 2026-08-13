@@ -6,8 +6,7 @@ change only through a deprecation cycle, never a silent break. This document ref
 seams **exactly as built**; the authoritative source is the code it points at.
 
 The two seams are `authorize` (R3) and the `invoke.rails_mcp` notification event (R4). There
-is no third seam — in particular, **no tenant seam** (R11): the gem has no tenant concept at
-any level.
+is no third seam.
 
 ---
 
@@ -36,7 +35,6 @@ that populates it per request; it adds no `authorize`/payload keys.
 Guarantees (R9, ADR-0004):
 
 - The context carries the acting **`user:`** (resolved app-side).
-- It carries **no tenant** — the gem has no tenant concept.
 - It **never** carries the raw bearer token.
 - An absent user is `nil`. The gem does not fail-closed on your behalf — your `authorize`
   denies a `nil` user.
@@ -109,13 +107,6 @@ audit row.
 - **No credentials.** The payload and every gem log line exclude the bearer token and any
   credential — a standing rule guarded by CI grep (ADR-0004, R4).
 
-- **No tenant — recover it from `Current`.** The payload carries no tenant by design. It does
-  not need to: the subscriber runs **synchronously on the request thread** (`ActiveSupport::
-  Notifications.instrument` publishes inline, not on a background thread), inside the
-  controller's tenant-shard wrap, so `Current.tenant` still holds the request's tenant when
-  your subscriber runs. Read it from `Current` to attribute the audit row — see
-  [`USAGE.md` §6](USAGE.md).
-
 Subscribe app-side (typically in `config/initializers/rails_mcp.rb`):
 
 ```ruby
@@ -136,12 +127,6 @@ identity (R9).
 
 ## What is deliberately NOT a seam
 
-- **Tenancy** — no `around`/scope hook, no tenant concept (R11, ADR-0004). If your app is
-  multi-tenant, scoping is ordinary app code at the **controller**, wrapping `handle_request`
-  in the tenant's shard so **both** `authorize` and `perform` run in-shard (`authorize` runs
-  before `perform` and also needs the shard) — take the tenant from the authenticated context,
-  never a free tool arg. The how-to is [`USAGE.md` §6](USAGE.md). The payload below carries
-  **no tenant** by design; you recover it in the subscriber via `Current` (next section).
 - **Audit persistence, permission model, identity resolution** — all app-owned. The gem
   defines *where* they happen (these two seams); the app defines *what* they are.
 

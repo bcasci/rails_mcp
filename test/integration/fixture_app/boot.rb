@@ -7,14 +7,12 @@
 # reads each `.tt` and asserts the loaded constant's source equals it, so a test can never
 # pass by diverging from the stamped code (R6 verbatim rule).
 #
-# What this fixture provides that the old dummy_app did not (the gaps spec 0005 closes):
+# What this fixture provides (the gaps spec 0005 closes):
 #
 #   * a real `ApplicationController < ActionController::Base` with
 #     `protect_from_forgery with: :exception` — so CSRF is genuinely on (R2 CSRF),
 #   * a booted `Rails.application` whose `config.hosts` carries a non-loopback production
 #     Host — so the SDK DNS-rebinding guard is genuinely exercised (R2 Host),
-#   * a sharded-tenant stand-in with an OBSERVABLE `with_shard` — so "both authorize and
-#     perform run in-shard" is a real assertion, not a stub (R3),
 #   * a reload stand-in (a redefined tool class) driven through the registry (R1).
 #
 # The app WIRES the two fail-closed seams by SUBCLASSING the verbatim base classes
@@ -97,22 +95,13 @@ module FixtureApp
     end
 
     # The app-side infrastructure the stamped templates lean on: a real
-    # ApplicationController with CSRF genuinely on, a Current, and a sharded-tenant
-    # stand-in whose with_shard is observable.
+    # ApplicationController with CSRF genuinely on.
     def define_app_infrastructure!
       unless defined?(::ApplicationController)
         Object.const_set(:ApplicationController, Class.new(ActionController::Base) do
           protect_from_forgery with: :exception
         end)
       end
-
-      require_relative "tenant"
-      require_relative "current"
-
-      # The stamped controller's documented shard wrap reads a TOP-LEVEL `Current.tenant`
-      # (`Current.tenant.with_shard { ... }`). Provide it as a thin alias of the fixture's
-      # own Current so the documented snippet runs verbatim in the shard proof.
-      Object.const_set(:Current, FixtureApp::Current) unless defined?(::Current)
     end
 
     # Load the rendered templates verbatim as the top-level McpController and

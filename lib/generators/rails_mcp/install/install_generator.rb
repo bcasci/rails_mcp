@@ -23,8 +23,7 @@ module RailsMcp
            "tool, and example tests."
 
       # The app-owned base tool, mirroring ApplicationController. Fail-closed: its
-      # stamped `authorize` denies (R7). Scoping is a commented, optional note — the
-      # gem presumes no tenancy (R11).
+      # stamped `authorize` denies (R7).
       def create_application_mcp_tool
         template "application_mcp_tool.rb.tt", "app/mcp/application_mcp_tool.rb"
       end

@@ -4,7 +4,7 @@ Expose a hand-picked allow-list of Rails app actions to an AI client over MCP
 (Model Context Protocol), on top of the official [`mcp`](https://rubygems.org/gems/mcp)
 gem. `rails_mcp` ships the tool DSL and two seams — `authorize` (fail-closed) and a
 per-call `ActiveSupport::Notifications` audit event; each app owns authorization, audit,
-identity, and any tenant scoping. A safer replacement for raw `rails console`/`runner`
+and identity. A safer replacement for raw `rails console`/`runner`
 access: allow-list + attribution + audit.
 
 v1 is read-only: it can register and invoke read-only diagnostic tools only. Protocol
@@ -47,7 +47,7 @@ the acting staff user is; `authorize` decides *what* that user may do. See
 
 - [`docs/USAGE.md`](docs/USAGE.md) — install, wire the two seams, the args DSL, writing a
   read-only tool, registering the allow-list, the app-owned controller and its customization
-  seams, tenancy, and testing.
+  seams, and testing.
 - [`docs/SEAMS.md`](docs/SEAMS.md) — the frozen contracts: `authorize` (fail-closed) and the
   `invoke.rails_mcp` audit payload.
 

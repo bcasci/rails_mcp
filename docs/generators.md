@@ -13,8 +13,7 @@ non-obvious Rails-generator knowledge the T6 agent needs; general Ruby is assume
 ## What it stamps (SPEC R7/R8)
 
 - `app/mcp/application_mcp_tool.rb` — from `application_mcp_tool.rb.tt`: fail-closed, with
-  clearly commented `authorize` and audit seams. **No tenant presumption** — not every app
-  is multi-tenant (SPEC R11); any scoping is a commented, optional note.
+  clearly commented `authorize` and audit seams.
 - `config/initializers/rails_mcp.rb` — from `initializer.rb.tt`.
 - one read-only example tool — from `example_read_only_tool.rb.tt`.
 - example tests (authz denial, audit-row-written) — from `example_tests.rb.tt`.
@@ -22,8 +21,9 @@ non-obvious Rails-generator knowledge the T6 agent needs; general Ruby is assume
 
 ## Route injection (idempotent)
 
-- Use `route "mount_mcp '/mcp'"`, or `inject_into_file "config/routes.rb"` guarded by a
-  check for the existing mount so a second run does not duplicate the line.
+- Use the `route` helper to inject `match "/mcp", to: "mcp#handle", via: [:get, :post, :delete]`,
+  or `inject_into_file "config/routes.rb"` guarded by a check for the existing route so a second
+  run does not duplicate the line.
 
 ## Idempotency
 
@@ -35,4 +35,4 @@ non-obvious Rails-generator knowledge the T6 agent needs; general Ruby is assume
 - `Rails::Generators::TestCase`, `tests InstallGenerator`, a tmp `destination`,
   `setup { prepare_destination }`.
 - `run_generator`, then `assert_file` on each stamped file and
-  `assert_file "config/routes.rb", /mount_mcp/`.
+  `assert_file "config/routes.rb", /mcp#handle/`.

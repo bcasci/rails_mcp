@@ -22,9 +22,12 @@ needs a `file:line` citation — no speculative findings.
 
 - Every changed behavior tied to a SPEC requirement has a test asserting its acceptance
   criteria. A public seam change with no test is a finding.
-- Flag tautological/always-green tests, tests with no meaningful assertion, over-mocking
-  that asserts the mock instead of the behavior, and duplicate coverage of a behavior
-  already tested elsewhere.
+- Flag tautological/always-green tests, tests with no meaningful assertion, and duplicate
+  coverage of a behavior already tested elsewhere.
+- **Over-mocking is a finding.** Flag: mocks of the unit under test or the gem's own classes;
+  assertions that a method "was called" with no outcome check; a stub returning a shape the
+  real method never produces; a stubbed boundary with no integration/contract test exercising
+  the real thing. A green test over an unrealistic stub is a real bug hiding.
 
 ## Spec adherence
 

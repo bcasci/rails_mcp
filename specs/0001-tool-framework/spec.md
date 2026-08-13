@@ -6,7 +6,8 @@ actions to an AI client over MCP. Derived from the idea docs in
 `ideas/07-rails-mcp-action-server/`. Requirements are testable; acceptance criteria are
 Given/When/Then.
 
-`OPEN:` marks a genuine unmade decision Brandon must settle before the build.
+All decisions are settled — `DECIDED` marks each. No `OPEN:` forks remain; the build runs
+unattended. `BUILD-TIME CHECK` marks a verification a builder performs (not a decision).
 
 ---
 
@@ -86,8 +87,8 @@ args are accepted; the AI cannot pass arbitrary arguments.
 - **Given** an arg typed `:integer`, **when** invoked with a non-integer value, **then**
   the call is rejected before `perform`.
 
-`OPEN:` args DSL validation engine — hand-rolled type coercion/validation vs delegating to
-the official gem's JSON-Schema `input_schema`. Decide before R1 is built.
+**DECIDED** args validation delegates to the official `mcp` gem's JSON-Schema `input_schema`
+(no hand-rolled type engine). The DSL builds the `input_schema`; the gem validates against it.
 
 ### R2 — `perform` convention
 
@@ -118,9 +119,10 @@ provided an implementation. Authorization runs before any work in `perform`.
   never runs and the call returns an authorization error.
 - **Given** `authorize` passes, **when** invoked, **then** `perform` runs.
 
-`OPEN:` `authorize` signature/contract. The sketch shows `authorize(user:, **)`. Freeze
-the exact keyword contract (what context keys are guaranteed: `user:`, `args:`, tool
-class?) since app code depends on it.
+**DECIDED** `authorize` signature is `authorize(user:, args:, tool:)` — keyword args, the
+guaranteed context contract app code depends on: `user:` (the acting staff user), `args:`
+(the declared args hash), `tool:` (the tool instance/class). App overrides accept `**` to
+stay forward-compatible.
 
 ### R4 — Per-call `ActiveSupport::Notifications` event (audit seam)
 
@@ -138,11 +140,12 @@ app is responsible for subscribing and writing an audit row.
 - **Given** the gem alone (no app subscriber), **when** a tool runs, **then** no audit
   record is written by the gem (audit is app-owned).
 
-`OPEN:` event name and payload schema. e.g. `"invoke.rails_mcp"` and the exact payload
-keys. This is a public contract apps subscribe to — freeze it before R4 is built.
+**DECIDED** event name is `"invoke.rails_mcp"`. Payload keys (the public contract apps
+subscribe to): `user:` (acting staff user), `tool:` (tool name/class), `args:` (declared
+args), and `result:` or `error:` (exactly one). No other keys.
 
-`OPEN:` bearer tokens must never appear in the notification payload or any gem log (per
-token-theft risk). Confirm the payload explicitly excludes credentials.
+**DECIDED (enforced)** the payload and every gem log line exclude bearer tokens and
+credentials — a CI grep guards it. Not a fork; a standing rule (ADR-0004).
 
 ### R5 — Tool annotations passed through the DSL
 
@@ -156,12 +159,12 @@ advisory and not rely on the client honoring them.
 - **Given** a tool that does not declare an annotation, **when** advertised, **then** it is
   treated as maximally dangerous (not silently marked read-only).
 
-`OPEN:` server-side tier enforcement. Docs say the read-only/mutating tier must be enforced
-server-side (the hint is advisory). In a read-only v1 with no mutating tools, decide
-whether v1 ships any tier-enforcement mechanism or defers it entirely to Phase 2.
+**DECIDED** no server-side tier enforcement in v1 — v1 is read-only, so there are no
+mutating tools to gate. Deferred to Phase 2 when mutations arrive.
 
-`OPEN:` verify the pinned `mcp` gem version actually emits annotations (docs flag this as a
-version-check TODO, SDK issue #259).
+**BUILD-TIME CHECK** (not a decision) the T2 builder verifies the pinned `mcp` gem version
+actually emits annotations (SDK issue #259) and pins a version that does; if none does, it
+records the gap as a finding rather than blocking.
 
 ### R6 — `mount_mcp` route helper
 
@@ -210,8 +213,9 @@ example tests (authz denial, audit-row-written).
 - **Given** the generated example tests, **when** run, **then** they express authorization
   denial and audit-row-written as the expected safety checks.
 
-`OPEN:` generator output paths/names — confirm `app/mcp/` as the tool directory, the
-initializer path/name, and the example tool's name.
+**DECIDED** generator output: tools under `app/mcp/` (`app/mcp/application_mcp_tool.rb`);
+initializer `config/initializers/rails_mcp.rb`; example tool
+`app/mcp/example_read_only_tool.rb`; example tests `test/mcp/` (or the app's test dir).
 
 ### R9 — Act-as-real-staff-user identity (app-side)
 
@@ -229,9 +233,11 @@ act-as-staff-user; a separate service identity is rejected for v1.
 - **Given** an invocation with no valid staff identity in context, **when** the tool runs,
   **then** it fails closed (per R3).
 
-`OPEN:` context object shape — what the gem guarantees is present (user, tenant?, raw
-token excluded) and how the app populates it (server_context from the official gem vs a
-gem-defined wrapper). Freeze the contract; app authz depends on it.
+**DECIDED** context object is a gem-defined wrapper carrying `user:` (the acting staff user,
+resolved app-side) and `args:`. It guarantees no tenant (ADR-0004: the gem has no tenant
+concept) and never carries the raw bearer token. The app populates `user:` in the
+Rack/controller layer that validates the token; the gem passes the wrapper to `authorize`
+and the notification payload.
 
 ### R10 — Allow-list (AI can invoke only registered tools)
 

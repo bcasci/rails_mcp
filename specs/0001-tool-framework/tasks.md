@@ -6,14 +6,10 @@ without merge conflicts. Shared entry points (the gem's main require file, the g
 owned by a single foundation task; dependents add their own files and are wired in by that
 owner or via a documented require the dependent adds to its own file only.
 
-Tags: `autonomous` = verifiable by tests alone. `needs-human-oracle` = needs Brandon to
-judge (design/API-freeze decisions, or a real fork marked `OPEN:` in spec.md).
+Every task is `autonomous` — all decisions are locked as `DECIDED` in spec.md, so the build
+runs unattended. References like `R3` point to spec.md requirements.
 
-References like `R3` point to spec.md requirements. `OPEN:` items must be decided by Brandon
-before or during the referenced task.
-
-Assume the top-level constant is `RailsMcp` and the tool dir is `app/mcp/` unless the
-namespacing `OPEN:` (T0) resolves otherwise.
+The top-level constant is `RailsMcp` and the tool dir is `app/mcp/`.
 
 ---
 
@@ -36,9 +32,8 @@ namespacing `OPEN:` (T0) resolves otherwise.
 - No hand-rolled JSON-RPC/transport in the gem (delegated to `mcp`).
 - `rake` runs the (initially empty) test suite green.
 
-**Tag:** `needs-human-oracle` — resolve SPEC `OPEN:` gem name/namespace and Ruby/Rails
-floor and `OPEN:` engine choice (official `mcp` vs `action_mcp` spike) before finalizing the
-gemspec. Rest is `autonomous`.
+**Tag:** `autonomous` — gem name/namespace, Ruby/Rails floor, and engine are all DECIDED in
+spec.md.
 
 > `lib/rails_mcp.rb` is owned solely by T0. Later tasks add their own files under
 > `lib/rails_mcp/` and are required from `lib/rails_mcp.rb`; to keep files disjoint, T0
@@ -60,8 +55,7 @@ gemspec. Rest is `autonomous`.
 - Missing required arg is rejected before `perform`; wrong-typed arg is rejected.
 - Undeclared args are not forwarded to `perform`.
 
-**Tag:** `autonomous` (but see SPEC `OPEN:` R1 — validation-engine choice; if unresolved,
-flag to Brandon).
+**Tag:** `autonomous` — R1 validation engine DECIDED (official gem's `input_schema`).
 
 ### T2 — Annotations DSL (`read_only!` etc.)
 **Owns:**
@@ -74,8 +68,8 @@ flag to Brandon).
 - `read_only!` sets `readOnlyHint: true` on the advertised tool.
 - No annotation ⇒ tool is not treated as read-only (maximally dangerous default).
 
-**Tag:** `needs-human-oracle` — SPEC `OPEN:` R5 (server-side tier enforcement in v1? verify
-pinned `mcp` version emits annotations). Mechanics are `autonomous`.
+**Tag:** `autonomous` — R5 tier enforcement DECIDED (deferred; v1 read-only). Build-time:
+verify the pinned `mcp` version emits annotations, pin one that does.
 
 ### T3 — Notifications (audit seam)
 **Owns:**
@@ -90,8 +84,8 @@ pinned `mcp` version emits annotations). Mechanics are `autonomous`.
   records the error.
 - Gem persists nothing; no bearer token in payload.
 
-**Tag:** `needs-human-oracle` — SPEC `OPEN:` R4 (freeze event name + payload schema; confirm
-credential exclusion). Emission mechanics are `autonomous`.
+**Tag:** `autonomous` — R4 event name `invoke.rails_mcp` + payload schema DECIDED;
+credentials excluded (enforced).
 
 ---
 
@@ -112,8 +106,8 @@ credential exclusion). Emission mechanics are `autonomous`.
 - Authorize runs before perform; the T3 notification fires exactly once per invoke,
   including on raise.
 
-**Tag:** `needs-human-oracle` — SPEC `OPEN:` R3 (freeze `authorize` signature) and `OPEN:`
-R11 (is `around`/tenant-scope a v1 seam?). Pipeline wiring is `autonomous`.
+**Tag:** `autonomous` — R3 `authorize(user:, args:, tool:)` DECIDED; R11 no tenant seam
+DECIDED.
 
 ---
 
@@ -135,8 +129,7 @@ files with T4.)
 - `tools/call` on an unregistered tool is refused.
 - No arbitrary-Ruby/console tool exists in the surface.
 
-**Tag:** `needs-human-oracle` — SPEC `OPEN:` R6 (stateless vs stateful default). Wiring is
-`autonomous`.
+**Tag:** `autonomous` — R6 stateless HTTP DECIDED.
 
 ---
 
@@ -163,8 +156,8 @@ public APIs but do not edit their files.
   seams (no presumed tenancy; scoping is a commented, optional note).
 - Example tests express authz denial and audit-row-written.
 
-**Tag:** `needs-human-oracle` — SPEC `OPEN:` R8 (generator output paths/names), `OPEN:` R7
-seam contract, `OPEN:` R9 (context object shape). Generator plumbing/tests are `autonomous`.
+**Tag:** `autonomous` — R8 generator paths, R7 seam contract, R9 context shape all DECIDED
+in spec.md.
 
 ---
 
@@ -197,8 +190,7 @@ seam contract, `OPEN:` R9 (context object shape). Generator plumbing/tests are `
 - Docs reflect the frozen event name/payload (R4), `authorize` signature (R3), and context
   shape (R9) exactly as built.
 
-**Tag:** `needs-human-oracle` — content depends on frozen contracts; Brandon confirms
-accuracy.
+**Tag:** `autonomous` — contracts (R3/R4/R9) are frozen in spec.md; docs reflect them.
 
 ---
 
@@ -229,10 +221,13 @@ T4+T5. T7/T8 last.
   Only frozen seams are `authorize` and the notification event.
 - Args validation: use the official gem's JSON-Schema `input_schema`.
 
-**Still OPEN — decide at the referenced task (design-detail, conventional default is fine):**
+**DECIDED (design details, also locked in spec.md):**
 
-- Server-side tier enforcement in v1? + verify pinned `mcp` emits annotations — **T2** (R5).
-- Event name + payload schema; confirm credentials excluded — **T3** (R4).
-- `authorize` signature/keyword contract — **T4** (R3).
-- Generator output paths/names (`app/mcp/`, initializer, example tool) — **T6** (R8).
-- Context-object shape (what the gem guarantees: user, token excluded) — **T6** (R9).
+- Annotations tier enforcement: deferred (v1 read-only) — T2 (R5). Build-time: verify the
+  pinned `mcp` emits annotations.
+- Event `invoke.rails_mcp`; payload `{user, tool, args, result-or-error}`, no credentials — T3 (R4).
+- `authorize(user:, args:, tool:)` — T4 (R3).
+- Generator paths: `app/mcp/`, `config/initializers/rails_mcp.rb`, example tool — T6 (R8).
+- Context object: gem wrapper with `user:`, no tenant, no raw token — T6 (R9).
+
+No open decisions remain — every task is `autonomous`; the build runs unattended.

@@ -51,3 +51,7 @@ duplicate.
 
 - One behavior per test. Mirror SPEC acceptance criteria: Given/When/Then maps to
   arrange/act/assert, one requirement's criterion per test.
+- **Real objects by default.** Stubs and mocks are for true external boundaries only (network,
+  clock, randomness) and must earn their place; never mock the unit under test or the gem's
+  own classes, and assert on outcomes, not on "a method was called." Full discipline in the
+  `spec-driven-dev` skill's `references/testing.md`.

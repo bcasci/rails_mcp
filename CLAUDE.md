@@ -87,3 +87,12 @@ Gotchas:
   `input_schema` getter — so `Args` must also override `input_schema_value` to return the
   `arg`-built schema, or an `arg`-only tool advertises an empty schema. When bumping `mcp`,
   re-check that `to_h`/the call path still read `input_schema_value`.
+- The verbatim-template fixture (spec 0005 R6, `test/integration/fixture_app/boot.rb`) proves the
+  generated `McpController`/`ApplicationMcpTool` are exercised as-stamped by `eval`-ing the raw
+  `.tt` at `TOPLEVEL_BINDING` and asserting the loaded constant's source is byte-identical to the
+  file. This works ONLY because those two templates carry no ERB tags (`<%…%>`), so the file IS
+  the rendered output. Gotcha: adding an ERB tag to either template breaks the `eval` and voids
+  the R6 fidelity guarantee — if a template must become dynamic, render it through the generator's
+  ERB in-suite instead of `eval`-ing the source. (The `eval` is test-only; the ADR-0004 "no `eval`"
+  constraint is about gem `lib/` shipping a code-executor tool and stays intact — `grep eval lib/`
+  is still empty.)

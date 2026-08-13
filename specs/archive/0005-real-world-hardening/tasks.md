@@ -1,5 +1,7 @@
 # TASKS — real-world integration hardening
 
+Completed Thu Aug 13 11:38:54 EDT 2026 at commit 8e9c8c5
+
 Task breakdown for spec 0005. Same constraint: **each task owns a DISJOINT set of files**.
 Builds on shipped specs 0001–0004 (archived). References like `R1` point to this spec's
 `spec.md`; `0001 R10` points to an archived spec.
@@ -13,7 +15,7 @@ of them because it exercises the stamped output end to end.
 
 ## Layer 0 — Foundation + template/doc hardening (parallel)
 
-### T0 — Reload-safe, collision-detecting registry (ADR-0009)
+### T0 — Reload-safe, collision-detecting registry (ADR-0009) — DONE
 **Owns:**
 - `lib/rails_mcp/registry.rb` (CHANGED: key by `tool_name`; reload replaces same-class-name
   entry; raise `RailsMcp::ToolNameCollision` on a different class claiming a taken `tool_name`;
@@ -29,7 +31,7 @@ of them because it exercises the stamped output end to end.
 **Acceptance (R1):** all R1 criteria.
 **Tag:** `autonomous` — keying + collision behavior DECIDED (ADR-0009).
 
-### T1 — Hardened `McpController` template (Host, CSRF, before_action, shard guidance)
+### T1 — Hardened `McpController` template (Host, CSRF, before_action, shard guidance) — DONE
 **Owns:**
 - `lib/generators/rails_mcp/install/templates/mcp_controller.rb.tt` (CHANGED: `skip_forgery_protection`;
   build the transport with `allowed_hosts: Rails.application.config.hosts`; a marked comment to
@@ -45,7 +47,7 @@ of them because it exercises the stamped output end to end.
 **Acceptance (R2, R3 controller half):** R2 all; R3 controller-guidance criteria.
 **Tag:** `autonomous` — hardened defaults DECIDED (R2/R3).
 
-### T2 — `ApplicationMcpTool` tenant note + docs
+### T2 — `ApplicationMcpTool` tenant note + docs — DONE
 **Owns:**
 - `lib/generators/rails_mcp/install/templates/application_mcp_tool.rb.tt` (CHANGED: correct the
   tenant note — scoping belongs at the controller wrapping `handle_request` because `authorize`
@@ -63,7 +65,7 @@ of them because it exercises the stamped output end to end.
 
 ## Layer 1 — Verbatim-template fixture app (the integration proof)
 
-### T3 — Fixture Rails app exercising the stamped templates verbatim
+### T3 — Fixture Rails app exercising the stamped templates verbatim — DONE
 **Owns:**
 - `test/integration/fixture_app/` (a minimal Rails app harness: a real
   `ApplicationController < ActionController::Base` with `protect_from_forgery with: :exception`;

@@ -43,6 +43,48 @@ This is a second seam alongside the tool `authorize` check: `McpController` reso
 the acting staff user is; `authorize` decides *what* that user may do. See
 [`docs/USAGE.md`](docs/USAGE.md) for the full flow.
 
+## Make your first call
+
+From install to a proven `tools/call`. v1 auth is a **static `Authorization: Bearer` token
+over Streamable HTTP** — prove it with `curl` or an MCP inspector that sets a custom header.
+Claude's hosted remote-MCP connector expects OAuth 2.1, so a static Bearer is not guaranteed
+to connect from that surface. Full recipe (the `api_token` migration, the staff seed, the
+`staff` scope) is in [`docs/USAGE.md`](docs/USAGE.md#2a-make-your-first-call-install--a-proven-toolscall).
+
+1. **Install** — add the gem (a git line until it is published) and generate:
+
+   ```ruby
+   # Gemfile
+   gem "rails_mcp", git: "https://github.com/your-org/rails_mcp.git"
+   ```
+
+   ```bash
+   bundle install
+   rails g rails_mcp:install
+   ```
+
+2. **Wire auth** — in `app/controllers/mcp_controller.rb`, replace the fail-closed
+   `authenticate_acting_user!` with the stamped bearer example, and override `authorize` in
+   `app/mcp/application_mcp_tool.rb` to permit the staff user (both deny until you do):
+
+   ```ruby
+   def authenticate_acting_user!
+     token = request.headers["Authorization"].to_s.remove("Bearer ")
+     User.staff.find_by(api_token: token) || raise(RailsMcp::NotAuthorized)
+   end
+   ```
+
+3. **Call it** — register `ExampleReadOnlyTool`, then run the handshake against `POST /mcp`
+   (`mcp#handle`) and finish with a `tools/call`:
+
+   ```bash
+   curl -sS http://localhost:3000/mcp \
+     -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+     -H "Accept: application/json" \
+     -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"example_read_only","arguments":{"subject":"first call"}}}'
+   # => {"result":{"content":[{"type":"text","text":"Looked up: first call"}],"isError":false}}
+   ```
+
 ## Usage
 
 - [`docs/USAGE.md`](docs/USAGE.md) — install, wire the two seams, the args DSL, writing a

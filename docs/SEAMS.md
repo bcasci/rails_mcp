@@ -10,6 +10,16 @@ is no third seam.
 
 ---
 
+## Client-auth reality (v1)
+
+v1 authenticates each `/mcp` request with a static `Authorization: Bearer <token>` over
+Streamable HTTP (ADR-0002/0003) — validate it with `curl` or an MCP inspector that accepts a
+custom header. Claude's hosted remote-MCP connector expects OAuth 2.1, so a static Bearer from
+that surface is **not guaranteed** to connect; v1 does not promise it. See the runnable
+handshake in [`USAGE.md`](USAGE.md).
+
+---
+
 ## The context handed to a tool
 
 The gem never resolves, invents, or nil-checks an identity — that is app code. Your

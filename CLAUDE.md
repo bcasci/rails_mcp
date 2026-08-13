@@ -54,6 +54,8 @@ Some ADRs are standing constraints, enforced by grep in CI (not just prose):
 
 - ADR-0001 / ADR-0004 — no hand-rolled JSON-RPC/transport, no console or arbitrary-Ruby
   tool, no gem-side policy or tenant references.
+- ADR-0010 — no tenancy on the shipped surface: `grep -ri 'tenant\|shard\|multitenan'` over
+  `lib/`, `docs/` (excluding `docs/adr/`), and `README.md` returns nothing.
 
 ## Conventions
 

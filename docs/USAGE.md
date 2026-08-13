@@ -156,6 +156,153 @@ a bearer token or credential.
 
 ---
 
+## 2a. Make your first call (install → a proven `tools/call`)
+
+This is the copy-paste path from a stamped install to a real MCP tool result over HTTP. It wires
+the **static Bearer** example the generator ships commented in `mcp_controller.rb` — the
+`User.staff.find_by(api_token: token)` line — and then runs the JSON-RPC handshake with `curl`.
+Everything here is **host-app** setup (a migration, a seed, a scope, seam overrides); the gem
+ships no auth or policy (ADR-0004), only the seams these steps fill.
+
+> **Client-auth reality (read first).** v1 is a **static `Authorization: Bearer` token over
+> Streamable HTTP** — validate it with `curl` (below) or an MCP inspector that lets you set a
+> custom header. Claude's hosted remote-MCP connector expects **OAuth 2.1**, so a static Bearer
+> from that surface is not guaranteed to connect; use `curl`/an inspector to prove the endpoint.
+
+### 1. Add the `api_token` column the bearer example reads
+
+The stamped bearer path resolves the user from an `api_token` column on `users`. Add it:
+
+```console
+$ rails g migration AddApiTokenToUsers api_token:string:index
+$ rails db:migrate
+```
+
+The generated migration:
+
+```ruby
+class AddApiTokenToUsers < ActiveRecord::Migration[7.1]
+  def change
+    add_column :users, :api_token, :string
+    add_index :users, :api_token
+  end
+end
+```
+
+### 2. Add a `staff` scope and seed a token
+
+The stamped example calls `User.staff.find_by(...)`, so `User` needs a `staff` scope. Add one
+that fits your model (any boolean/role column works — this uses a `staff` flag):
+
+```ruby
+# app/models/user.rb
+class User < ApplicationRecord
+  scope :staff, -> { where(staff: true) }
+end
+```
+
+Seed a staff user with a random token and print it (you paste it into the `curl` calls below):
+
+```ruby
+# rails runner, a seed, or the console:
+user = User.staff.first || User.create!(email: "staff@example.com", staff: true)
+user.update!(api_token: SecureRandom.hex(24))
+puts user.api_token   # copy this — it is your Bearer token
+```
+
+`SecureRandom.hex(24)` is a 48-char random token; treat it like a password.
+
+### 3. Wire the two fail-closed seams to permit that user
+
+Two seams are **fail-closed as stamped** — until both permit the staff user, the first call is
+denied. Wire them:
+
+**Authentication** — in `app/controllers/mcp_controller.rb`, replace the raising
+`authenticate_acting_user!` with the bearer example the template already documents in a comment:
+
+```ruby
+def authenticate_acting_user!
+  token = request.headers["Authorization"].to_s.remove("Bearer ")
+  user = User.staff.find_by(api_token: token)
+  raise RailsMcp::NotAuthorized, "no staff user" if user.nil?
+  user
+end
+```
+
+**Authorization** — in `app/mcp/application_mcp_tool.rb`, the stamped `authorize` **raises**
+(the gem default denies). Override it to permit the resolved staff user, or the first
+`tools/call` is blocked by the fail-closed `authorize` even after authentication succeeds:
+
+```ruby
+def authorize(user:, args:, tool:, **)
+  raise RailsMcp::NotAuthorized, "no staff user" if user.nil?
+  # permit the acting staff user (replace with your real policy, e.g. Pundit)
+end
+```
+
+Register the shipped example tool so it is on the allow-list (the generator's initializer is the
+place; here it is `ExampleReadOnlyTool`):
+
+```ruby
+# config/initializers/rails_mcp.rb
+Rails.application.config.to_prepare do
+  RailsMcp.registry.register(ExampleReadOnlyTool)
+end
+```
+
+### 4. Run the JSON-RPC handshake with `curl`
+
+Start the app (`rails s`), export your token, then run the three requests against `POST /mcp`.
+The route is `match "/mcp", to: "mcp#handle"` — every verb hits the one `handle` action.
+
+```console
+$ export TOKEN=<the api_token you printed above>
+```
+
+**`initialize`** — opens the session:
+
+```console
+$ curl -sS http://localhost:3000/mcp \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
+```
+
+**`tools/list`** — lists the allow-list; `example_read_only` appears:
+
+```console
+$ curl -sS http://localhost:3000/mcp \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+```
+
+```json
+{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"example_read_only","description":"Example read-only diagnostic tool — replace with a real one.","inputSchema":{"type":"object","properties":{"subject":{"type":"string","description":"what to look up"}},"required":["subject"]},"annotations":{"readOnlyHint":true}}]}}
+```
+
+**`tools/call`** — invokes `example_read_only` and returns a real tool result:
+
+```console
+$ curl -sS http://localhost:3000/mcp \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"example_read_only","arguments":{"subject":"first call"}}}'
+```
+
+```json
+{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"Looked up: first call"}],"isError":false}}
+```
+
+That `"Looked up: first call"` is `ExampleReadOnlyTool#perform` running through the gem's
+authorize + audit pipeline — install to a proven `tools/call`. Now replace `ExampleReadOnlyTool`
+with a real tool for your domain (section 4).
+
+---
+
 ## 3. Register tools (the allow-list)
 
 The AI can list and call **only** registered tools — there is no generic executor, no console

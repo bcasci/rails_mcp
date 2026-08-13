@@ -60,3 +60,12 @@ Some ADRs are standing constraints, enforced by grep in CI (not just prose):
 Project-specific naming, architecture invariants, layout, and API rules are in
 [`docs/conventions.md`](docs/conventions.md) — read it before adding classes or seams.
 Baseline: minitest, standardrb, read-only v1 (ADR-0003).
+
+Gotchas:
+
+- Acting identity rides the SDK's `server_context`, not a gem-defined wrapper (ADR-0005).
+  The SDK invokes a tool as `Tool.call(**arguments, server_context:)`; the app sets
+  `server.server_context = {user: ...}`, the gem reads `user:` out of it. Do not add a
+  `RailsMcp::Context`/identity wrapper class. The frozen contract is the keyword surface
+  (`authorize(user:, args:, tool:)`, payload `{user, tool, args, result|error}`), not the
+  transport of it.

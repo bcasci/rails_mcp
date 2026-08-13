@@ -1,5 +1,7 @@
 # TASKS — `rails_mcp` v1 build
 
+**Completed Wed Aug 12 23:44:55 EDT 2026 at commit 6403831** — all tasks (T0–T8) delivered and audited.
+
 Task breakdown for a **parallel multi-agent build**. Hard constraint: **each task owns a
 DISJOINT set of files** — no two tasks touch the same file, so agents build concurrently
 without merge conflicts. Shared entry points (the gem's main require file, the gemspec) are
@@ -15,7 +17,7 @@ The top-level constant is `RailsMcp` and the tool dir is `app/mcp/`.
 
 ## Layer 0 — Foundation (must land first)
 
-### T0 — Gem skeleton, gemspec, dependency on official `mcp`
+### T0 — Gem skeleton, gemspec, dependency on official `mcp` — DONE
 **Owns:**
 - `rails_mcp.gemspec`
 - `Gemfile`
@@ -45,7 +47,7 @@ spec.md.
 
 ## Layer 1 — Core tool primitives (parallel after T0)
 
-### T1 — Args DSL
+### T1 — Args DSL — DONE
 **Owns:**
 - `lib/rails_mcp/args.rb` (the `arg` class macro, type registry, schema builder)
 - `test/rails_mcp/args_test.rb`
@@ -59,7 +61,7 @@ spec.md.
 
 **Tag:** `autonomous` — R1 validation engine DECIDED (official gem's `input_schema`).
 
-### T2 — Annotations DSL (`read_only!` etc.)
+### T2 — Annotations DSL (`read_only!` etc.) — DONE
 **Owns:**
 - `lib/rails_mcp/annotations.rb` (`read_only!` → `readOnlyHint`, tier declaration, default
   = unannotated/dangerous)
@@ -73,7 +75,7 @@ spec.md.
 **Tag:** `autonomous` — R5 tier enforcement DECIDED (deferred; v1 read-only). Build-time:
 verify the pinned `mcp` version emits annotations, pin one that does.
 
-### T3 — Notifications (audit seam)
+### T3 — Notifications (audit seam) — DONE
 **Owns:**
 - `lib/rails_mcp/instrumentation.rb` (emits one `ActiveSupport::Notifications` event per
   call; payload builder; explicitly excludes credentials)
@@ -93,7 +95,7 @@ credentials excluded (enforced).
 
 ## Layer 2 — Tool base class (integrates Layer 1)
 
-### T4 — `RailsMcp::Tool` base class (perform, authorize, invoke pipeline)
+### T4 — `RailsMcp::Tool` base class (perform, authorize, invoke pipeline) — DONE
 **Owns:**
 - `lib/rails_mcp/tool.rb` (base class; includes Args T1, Annotations T2; wraps invoke as
   authorize → perform → notify; `text_response` helper; fail-closed default `authorize`)
@@ -115,7 +117,7 @@ DECIDED.
 
 ## Layer 3 — Transport mount (parallel with Layer 2, depends only on T0)
 
-### T5 — `mount_mcp` route helper + Rack transport wiring
+### T5 — `mount_mcp` route helper + Rack transport wiring — DONE
 **Owns:**
 - `lib/rails_mcp/mount.rb` (the `mount_mcp` routing helper over the official gem's Rack
   transport)
@@ -137,7 +139,7 @@ files with T4.)
 
 ## Layer 4 — Install generator (depends on the runtime API shape from Layers 2–3)
 
-### T6 — `rails g rails_mcp:install` generator + templates
+### T6 — `rails g rails_mcp:install` generator + templates — DONE
 **Owns:**
 - `lib/generators/rails_mcp/install/install_generator.rb`
 - `lib/generators/rails_mcp/install/templates/application_mcp_tool.rb.tt` (fail-closed,
@@ -165,7 +167,7 @@ in spec.md.
 
 ## Layer 5 — Cross-cutting verification & docs (after all above)
 
-### T7 — Integration test: allow-list + fail-closed + audit end-to-end
+### T7 — Integration test: allow-list + fail-closed + audit end-to-end — DONE
 **Owns:**
 - `test/integration/end_to_end_test.rb`
 - `test/integration/dummy_app/` (minimal dummy Rails app harness for mounting: routes,
@@ -182,7 +184,7 @@ in spec.md.
 
 **Tag:** `autonomous` (given the seams' contracts are frozen by T3/T4/T6 oracle decisions).
 
-### T8 — Gem usage docs (developer-facing)
+### T8 — Gem usage docs (developer-facing) — DONE
 **Owns:**
 - `docs/USAGE.md` (how to install, wire the seams, write a read-only tool)
 - `docs/SEAMS.md` (the frozen `authorize` + notification contracts, context-object shape)

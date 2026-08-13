@@ -12,13 +12,14 @@ acceptance criteria) and `tasks.md` (the build plan). Completed specs move to
 - Implement a task with the `spec-driven-dev` skill: read the task in its spec's `tasks.md`
   + the referenced requirements in `spec.md`, test-first from the acceptance criteria,
   implement to green, run the gate.
-- `/implement` (`.claude/workflows/implement.js`) builds a whole spec: a planner resolves
-  the spec folder and derives the dependency-ordered layers, builder agents run per task, a
-  per-layer gate + heal loop, an integration audit, a reflect stage, and an archive that
-  moves the finished spec to `specs/archive/`. `/implement 0001` builds one spec;
-  `/implement 0001 T3` builds one task.
-- Review is a separate pass by a different agent: `/code-review --fix`, guided by
-  `REVIEW.md`. Never self-certify.
+- `/implement` (`.claude/workflows/implement.js`) builds a whole spec autonomously: a planner
+  resolves the spec folder and derives the dependency-ordered layers, builder agents run per
+  task, a per-layer gate + heal loop, an **independent code-review phase** (a fresh reviewer,
+  not the builder, guided by `REVIEW.md`, fixing and re-reviewing until clean), an integration
+  audit, a reflect stage, and an archive that moves the finished spec to `specs/archive/`.
+  `/implement 0001` builds one spec; `/implement 0001 T3` builds one task.
+- `/code-review --fix` (guided by `REVIEW.md`) is an optional human spot-check on top of the
+  autonomous review phase — the build no longer needs it. Never self-certify.
 - Naming/architecture/testing rules: `docs/conventions.md`. Generator specifics:
   `docs/generators.md`.
 

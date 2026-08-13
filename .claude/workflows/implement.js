@@ -6,6 +6,7 @@ export const meta = {
     { title: 'Plan' },
     { title: 'Build' },
     { title: 'Gate' },
+    { title: 'Review' },
     { title: 'Audit' },
     { title: 'Reflect' },
     { title: 'Archive' },
@@ -124,6 +125,26 @@ ${JSON.stringify(gate && gate.findings ? gate.findings : gate, null, 2)}
 Fix the failures within this layer's owned files only. Re-run the failing tests/linter to
 confirm. Return the schema (work_id="heal ${layer.join('+')}").`
 
+const reviewPrompt = (specFile, tasksFile) => `${context(specFile, tasksFile)}
+
+Act as an INDEPENDENT code reviewer — you did NOT write this code. Review the full branch diff
+(git diff against the base branch; else the built lib/ + test/) against REVIEW.md and
+${specFile}. Priority: correctness bugs first; then the security invariants (allow-list, no
+eval/console, no gem-side policy or tenant logic, no token in a log or notification payload,
+authorize fails closed); then test quality (real objects over mocks, no over-mocking, every
+acceptance criterion actually asserted); then spec adherence (in read-only v1 scope); then
+simplification. Every finding needs a file:line. Do NOT fix — report only. Return the schema:
+work_id="review", status="pass" only if there are no blocker/major findings, else the findings.`
+
+const reviewFixPrompt = (review, specFile, tasksFile) => `${context(specFile, tasksFile)}
+
+An independent review found issues:
+${JSON.stringify(review && review.findings ? review.findings : review, null, 2)}
+
+Fix the blocker and major findings (leave minors unless trivial), within gem-owned files. Then
+re-run the gate (standardrb + rake test + ADR greps) and commit "review-fix: <summary>" through
+the pre-commit hook. Return the schema (work_id="review-fix").`
+
 const auditPrompt = (specFile, tasksFile) => `${context(specFile, tasksFile)}
 
 All layers are built and committed. Act as an INDEPENDENT integration auditor (you did not
@@ -196,6 +217,21 @@ for (const layer of layers) {
   log(`✓ Layer [${layer.join(', ')}] committed green.`)
 }
 
+phase('Review')
+const hasMajor = (r) => r && Array.isArray(r.findings) && r.findings.some((f) => f.severity === 'blocker' || f.severity === 'major')
+let rround = 0
+let review = await agent(reviewPrompt(specFile, tasksFile), { label: 'review', phase: 'Review', schema: RESULT_SCHEMA })
+while (hasMajor(review) && rround < 3) {
+  rround += 1
+  await agent(reviewFixPrompt(review, specFile, tasksFile), { label: `review-fix#${rround}`, phase: 'Review', schema: RESULT_SCHEMA })
+  review = await agent(reviewPrompt(specFile, tasksFile), { label: `review#${rround}`, phase: 'Review', schema: RESULT_SCHEMA })
+}
+if (review && Array.isArray(review.findings) && review.findings.some((f) => f.severity === 'blocker')) {
+  log(`⚠ Unresolved blocker review findings after ${rround} round(s) — stopping for human review.`)
+  return { plan, review, reason: 'review-blocked' }
+}
+log('✓ Independent review clean.')
+
 phase('Audit')
 const audit = await agent(auditPrompt(specFile, tasksFile), { label: 'integration-audit', phase: 'Audit', schema: RESULT_SCHEMA })
 
@@ -205,4 +241,4 @@ const reflect = await agent(reflectPrompt(specFile, tasksFile), { label: 'reflec
 phase('Archive')
 const archive = await agent(archivePrompt(specDir, specFile, tasksFile), { label: 'archive', phase: 'Archive' })
 
-return { plan, audit, reflect, archive }
+return { plan, review, audit, reflect, archive }

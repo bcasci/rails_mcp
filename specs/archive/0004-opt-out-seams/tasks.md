@@ -1,5 +1,7 @@
 # TASKS — opt-out seams for tool creation and exposing
 
+**Completed Thu Aug 13 10:52:19 EDT 2026 at commit 9aab57d** — all tasks delivered and audited.
+
 Task breakdown for spec 0004. Same constraint: **each task owns a DISJOINT set of files**.
 Builds on shipped specs 0001–0003 (archived): the `arg`/annotations DSL, `RailsMcp::Tool`,
 `RailsMcp::Registry`, and the install generator.
@@ -11,7 +13,7 @@ spec's `spec.md`. Tasks own disjoint files and can build in parallel after their
 
 ## Layer 0 — DSL yields to explicit values
 
-### T0 — `input_schema` / `annotations` yield to an explicitly-set value
+### T0 — `input_schema` / `annotations` yield to an explicitly-set value — DONE
 **Owns:**
 - `lib/rails_mcp/args.rb` (CHANGED: `input_schema` returns an explicitly-set schema when the
   tool set one via the `mcp` macro; builds from `arg` definitions only when no explicit schema
@@ -35,7 +37,7 @@ spec's `spec.md`. Tasks own disjoint files and can build in parallel after their
 
 ## Layer 1 — Co-located registration
 
-### T1 — `expose!` macro
+### T1 — `expose!` macro — DONE
 **Owns:**
 - `lib/rails_mcp/tool.rb` (CHANGED: add the class-level `expose!` macro — registers `self` on
   `RailsMcp.registry`; idempotent via the registry)
@@ -54,7 +56,7 @@ spec's `spec.md`. Tasks own disjoint files and can build in parallel after their
 
 ## Layer 2 — Documented escapes + guardrail proof
 
-### T2 — Registry-escape tests + opt-out docs
+### T2 — Registry-escape tests + opt-out docs — DONE
 **Owns:**
 - `test/rails_mcp/opt_out_seams_test.rb` (NEW: a raw `MCP::Tool` registers via ordinary
   `register` and runs, listable, with NO `authorize`/`invoke.rails_mcp` event and NO gem

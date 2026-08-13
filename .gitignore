@@ -6,3 +6,6 @@
 /pkg/
 /spec/reports/
 /tmp/
+
+# A library should not ship a lockfile — let each consumer/CI resolve per platform.
+/Gemfile.lock

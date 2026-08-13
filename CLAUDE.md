@@ -14,10 +14,11 @@ acceptance criteria) and `tasks.md` (the build plan). Completed specs move to
   implement to green, run the gate.
 - `/implement` (`.claude/workflows/implement.js`) builds a whole spec autonomously: a planner
   resolves the spec folder and derives the dependency-ordered layers, builder agents run per
-  task, a per-layer gate + heal loop, an **independent code-review phase** (a fresh reviewer,
-  not the builder, guided by `REVIEW.md`, fixing and re-reviewing until clean), an integration
-  audit, a reflect stage, and an archive that moves the finished spec to `specs/archive/`.
-  `/implement 0001` builds one spec; `/implement 0001 T3` builds one task.
+  task, a per-layer gate + heal loop, a **Verify loop** (an independent reviewer + an
+  independent auditor — neither the builder — run together against `REVIEW.md` and the spec;
+  a fix pass clears blocker/major findings; re-verify until both are clean or a 3-round cap
+  stops for a human), a reflect stage, and an archive that moves the finished spec to
+  `specs/archive/`. `/implement 0001` builds one spec; `/implement 0001 T3` builds one task.
 - `/code-review --fix` (guided by `REVIEW.md`) is an optional human spot-check on top of the
   autonomous review phase — the build no longer needs it. Never self-certify.
 - Naming/architecture/testing rules: `docs/conventions.md`. Generator specifics:

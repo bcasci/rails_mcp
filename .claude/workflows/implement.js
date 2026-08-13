@@ -6,8 +6,7 @@ export const meta = {
     { title: 'Plan' },
     { title: 'Build' },
     { title: 'Gate' },
-    { title: 'Review' },
-    { title: 'Audit' },
+    { title: 'Verify' },
     { title: 'Reflect' },
     { title: 'Archive' },
   ],
@@ -136,14 +135,14 @@ acceptance criterion actually asserted); then spec adherence (in read-only v1 sc
 simplification. Every finding needs a file:line. Do NOT fix — report only. Return the schema:
 work_id="review", status="pass" only if there are no blocker/major findings, else the findings.`
 
-const reviewFixPrompt = (review, specFile, tasksFile) => `${context(specFile, tasksFile)}
+const verifyFixPrompt = (findings, specFile, tasksFile) => `${context(specFile, tasksFile)}
 
-An independent review found issues:
-${JSON.stringify(review && review.findings ? review.findings : review, null, 2)}
+Independent review and audit found blocker/major issues:
+${JSON.stringify(findings, null, 2)}
 
-Fix the blocker and major findings (leave minors unless trivial), within gem-owned files. Then
-re-run the gate (standardrb + rake test + ADR greps) and commit "review-fix: <summary>" through
-the pre-commit hook. Return the schema (work_id="review-fix").`
+Fix all of them within gem-owned files (leave minors unless trivial). Then re-run the gate
+(standardrb + rake test + ADR greps) and commit "verify-fix: <summary>" through the pre-commit
+hook. Return the schema (work_id="verify-fix").`
 
 const auditPrompt = (specFile, tasksFile) => `${context(specFile, tasksFile)}
 
@@ -217,23 +216,33 @@ for (const layer of layers) {
   log(`✓ Layer [${layer.join(', ')}] committed green.`)
 }
 
-phase('Review')
-const hasMajor = (r) => r && Array.isArray(r.findings) && r.findings.some((f) => f.severity === 'blocker' || f.severity === 'major')
-let rround = 0
-let review = await agent(reviewPrompt(specFile, tasksFile), { label: 'review', phase: 'Review', schema: RESULT_SCHEMA })
-while (hasMajor(review) && rround < 3) {
-  rround += 1
-  await agent(reviewFixPrompt(review, specFile, tasksFile), { label: `review-fix#${rround}`, phase: 'Review', schema: RESULT_SCHEMA })
-  review = await agent(reviewPrompt(specFile, tasksFile), { label: `review#${rround}`, phase: 'Review', schema: RESULT_SCHEMA })
+// Verify loop: independent review + independent audit, then fix, then re-verify —
+// until both return no blocker/major, or a 3-round cap stops for human review.
+phase('Verify')
+let review, audit
+let vround = 0
+while (true) {
+  const [rev, aud] = await parallel([
+    () => agent(reviewPrompt(specFile, tasksFile), { label: `review${vround ? '#' + vround : ''}`, phase: 'Verify', schema: RESULT_SCHEMA }),
+    () => agent(auditPrompt(specFile, tasksFile), { label: `audit${vround ? '#' + vround : ''}`, phase: 'Verify', schema: RESULT_SCHEMA }),
+  ])
+  review = rev
+  audit = aud
+  const blocking = [rev, aud]
+    .filter(Boolean)
+    .flatMap((r) => (Array.isArray(r.findings) ? r.findings : []))
+    .filter((f) => f.severity === 'blocker' || f.severity === 'major')
+  if (!blocking.length) {
+    log('✓ Independent review + audit clean.')
+    break
+  }
+  if (vround >= 3) {
+    log(`⚠ ${blocking.length} unresolved blocker/major finding(s) after ${vround} fix round(s) — stopping for human.`)
+    return { plan, review, audit, reason: 'verify-unresolved', findings: blocking }
+  }
+  vround += 1
+  await agent(verifyFixPrompt(blocking, specFile, tasksFile), { label: `fix#${vround}`, phase: 'Verify', schema: RESULT_SCHEMA })
 }
-if (review && Array.isArray(review.findings) && review.findings.some((f) => f.severity === 'blocker')) {
-  log(`⚠ Unresolved blocker review findings after ${rround} round(s) — stopping for human review.`)
-  return { plan, review, reason: 'review-blocked' }
-}
-log('✓ Independent review clean.')
-
-phase('Audit')
-const audit = await agent(auditPrompt(specFile, tasksFile), { label: 'integration-audit', phase: 'Audit', schema: RESULT_SCHEMA })
 
 phase('Reflect')
 const reflect = await agent(reflectPrompt(specFile, tasksFile), { label: 'reflect', phase: 'Reflect' })

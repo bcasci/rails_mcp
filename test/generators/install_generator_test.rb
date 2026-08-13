@@ -56,11 +56,92 @@ class InstallGeneratorTest < Rails::Generators::TestCase
     assert_file "test/mcp/example_read_only_tool_test.rb"
   end
 
-  # R8 + R6: the generator injects the `/mcp` route line via mount_mcp.
-  def test_injects_mount_mcp_route
+  # R3: the generator routes `/mcp` to McpController for the MCP request verbs.
+  def test_routes_mcp_to_controller
     with_routes_file
     run_generator
-    assert_file "config/routes.rb", /mount_mcp ["']\/mcp["']/
+    assert_file "config/routes.rb", /["']mcp#/
+  end
+
+  # R3: the direct `mount_mcp '/mcp'` line is no longer stamped — the generated
+  # default routes through the controller (ADR-0006).
+  def test_does_not_stamp_direct_mount_mcp_line
+    with_routes_file
+    run_generator
+    assert_file "config/routes.rb" do |content|
+      refute_match(/mount_mcp ["']\/mcp["']/, content,
+        "the direct mount_mcp '/mcp' line must not be stamped (routed via McpController instead)")
+    end
+  end
+
+  # R3: the route dispatches all MCP request verbs the stateless transport uses
+  # (POST, GET, DELETE) to the controller action — no verb the prior direct mount
+  # served is dropped.
+  def test_route_covers_mcp_request_verbs
+    with_routes_file
+    run_generator
+    assert_file "config/routes.rb" do |content|
+      assert_match(/:get/, content, "GET must reach the controller action")
+      assert_match(/:post/, content, "POST must reach the controller action")
+      assert_match(/:delete/, content, "DELETE must reach the controller action")
+    end
+  end
+
+  # R2: the generator creates an app-owned McpController < ApplicationController.
+  def test_creates_mcp_controller
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb",
+      /class McpController < ApplicationController/
+  end
+
+  # R2: the controller is fail-closed by default — its authentication seam raises
+  # until the implementor wires real auth, mirroring ApplicationMcpTool#authorize.
+  def test_mcp_controller_is_fail_closed
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb" do |content|
+      assert_match(/raise/, content, "stamped authentication seam must fail closed (raise)")
+    end
+  end
+
+  # R2: the resolve-acting-user → RailsMcp.serve flow is present as a marked,
+  # editable point in the controller.
+  def test_mcp_controller_serves_via_rails_mcp_serve
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb", /RailsMcp\.serve/
+  end
+
+  # R2/R4: the authentication seam is a clearly marked, commented editable point
+  # pointing the implementor at their own auth stack.
+  def test_mcp_controller_has_marked_auth_seam
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb" do |content|
+      assert_match(/AUTHENTICAT/i, content, "the authentication seam must be clearly marked")
+      assert_match(/^\s*#.*(Devise|session|token|auth)/i, content,
+        "a comment must point the implementor at their own auth stack")
+    end
+  end
+
+  # R4: the generated controller states the /mcp endpoint is unauthenticated until
+  # secured.
+  def test_mcp_controller_carries_secure_this_notice
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb", /unauthenticated until/i
+  end
+
+  # R4: the generator's post-run output includes the "unauthenticated until you
+  # secure McpController" notice, naming the file.
+  def test_generator_output_carries_security_notice
+    with_routes_file
+    output = run_generator
+    assert_match(/unauthenticated/i, output,
+      "post-run output must warn the /mcp endpoint is unauthenticated")
+    assert_match(/mcp_controller\.rb|McpController/, output,
+      "post-run notice must name the McpController file")
   end
 
   # R7: the stamped ApplicationMcpTool is fail-closed — it does not silently permit.

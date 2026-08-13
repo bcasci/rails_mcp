@@ -1,0 +1,62 @@
+# frozen_string_literal: true
+
+# McpController is the app-owned HTTP entry point in front of the MCP transport.
+# It inherits ApplicationController so it reuses YOUR app's existing auth stack
+# (Devise, session, a bearer token — whatever ApplicationController provides).
+#
+# This file is APP-OWNED and yours to edit. The rails_mcp gem ships no
+# authentication and no policy (ADR-0004): it defines *where* authentication
+# goes; you define *what* it is.
+#
+# SECURITY: as stamped, the `/mcp` endpoint is UNAUTHENTICATED UNTIL you secure
+# it here. It is FAIL-CLOSED by default — the authentication seam below raises,
+# so every request is denied and no tool runs until you wire your real check.
+# That is intentional: a misconfigured install denies rather than exposes.
+class McpController < ApplicationController
+  # One action serves every MCP request verb (POST, GET, DELETE). It authenticates
+  # the request, resolves the acting staff user, then hands the request to the gem's
+  # per-request serve entry point. The transport — not this action — decides per-verb
+  # behavior.
+  def handle
+    user = authenticate_acting_user!
+
+    # Serve ONE MCP request with `user` on the SDK server_context for this request
+    # only (per-request isolation — no shared, process-wide server is mutated). The
+    # gem returns a Rack response triple the controller renders.
+    status, headers, body = RailsMcp.serve(request, user: user)
+
+    headers.each { |key, value| response.headers[key] = value }
+    self.response_body = body
+    self.status = status
+  end
+
+  private
+
+  # === AUTHENTICATION SEAM (required) =====================================
+  # Resolve the acting staff user for THIS request from the app's own auth stack,
+  # then return it. It is the only identity handed to the gem; the gem never
+  # invents one.
+  #
+  # As stamped this RAISES (fail closed) so the endpoint denies until you wire it.
+  # Replace the raise with your real check, e.g. Devise / a session / a token:
+  #
+  #   def authenticate_acting_user!
+  #     authenticate_user!            # Devise, or your own before-action auth
+  #     current_user                  # the resolved acting staff user
+  #   end
+  #
+  # or a bearer token:
+  #
+  #   def authenticate_acting_user!
+  #     token = request.headers["Authorization"].to_s.remove("Bearer ")
+  #     user = User.staff.find_by(api_token: token)
+  #     raise RailsMcp::NotAuthorized, "no staff user" if user.nil?
+  #     user
+  #   end
+  def authenticate_acting_user!
+    raise RailsMcp::NotAuthorized,
+      "McpController#authenticate_acting_user! is not implemented — the /mcp " \
+      "endpoint is unauthenticated until secured, so every request is denied " \
+      "until you wire your real authentication check here."
+  end
+end

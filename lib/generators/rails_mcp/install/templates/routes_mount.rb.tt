@@ -1,1 +1,1 @@
-mount_mcp '/mcp'
+match "/mcp", to: "mcp#handle", via: [:get, :post, :delete]

@@ -75,7 +75,7 @@ resolving scope) is in [`docs/USAGE.md`](docs/USAGE.md#2a-make-your-first-call-i
    ```ruby
    def authenticate_acting_user!
      token = request.headers["Authorization"].to_s.remove("Bearer ")
-     User.staff.find_by(api_token: token) || raise(RailsMcp::NotAuthorized)
+     User.find_by(api_token: token) || raise(RailsMcp::NotAuthorized)
    end
    ```
 

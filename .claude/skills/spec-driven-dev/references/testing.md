@@ -13,8 +13,8 @@ Minitest, standardrb style. Tests mirror SPEC acceptance criteria.
 
 - Grep `test/` for existing coverage of the behavior. If it exists, extend or strengthen it
   — do not add a duplicate assertion.
-- If two tickets would test the same shared behavior, the ticket that **owns** the file
-  (per disjoint ownership in `TICKETS.md`) holds the test.
+- If two tasks would test the same shared behavior, the task that **owns** the file
+  (per disjoint ownership in `tasks.md`) holds the test.
 
 ## What a good test asserts here
 

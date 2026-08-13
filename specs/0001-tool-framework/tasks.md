@@ -1,16 +1,16 @@
-# TICKETS — `rails_mcp` v1 build
+# TASKS — `rails_mcp` v1 build
 
-Task breakdown for a **parallel multi-agent build**. Hard constraint: **each ticket owns a
-DISJOINT set of files** — no two tickets touch the same file, so agents build concurrently
+Task breakdown for a **parallel multi-agent build**. Hard constraint: **each task owns a
+DISJOINT set of files** — no two tasks touch the same file, so agents build concurrently
 without merge conflicts. Shared entry points (the gem's main require file, the gemspec) are
-owned by a single foundation ticket; dependents add their own files and are wired in by that
+owned by a single foundation task; dependents add their own files and are wired in by that
 owner or via a documented require the dependent adds to its own file only.
 
 Tags: `autonomous` = verifiable by tests alone. `needs-human-oracle` = needs Brandon to
-judge (design/API-freeze decisions, or a real fork marked `OPEN:` in SPEC.md).
+judge (design/API-freeze decisions, or a real fork marked `OPEN:` in spec.md).
 
-References like `R3` point to SPEC.md requirements. `OPEN:` items must be decided by Brandon
-before or during the referenced ticket.
+References like `R3` point to spec.md requirements. `OPEN:` items must be decided by Brandon
+before or during the referenced task.
 
 Assume the top-level constant is `RailsMcp` and the tool dir is `app/mcp/` unless the
 namespacing `OPEN:` (T0) resolves otherwise.
@@ -40,9 +40,9 @@ namespacing `OPEN:` (T0) resolves otherwise.
 floor and `OPEN:` engine choice (official `mcp` vs `action_mcp` spike) before finalizing the
 gemspec. Rest is `autonomous`.
 
-> `lib/rails_mcp.rb` is owned solely by T0. Later tickets add their own files under
+> `lib/rails_mcp.rb` is owned solely by T0. Later tasks add their own files under
 > `lib/rails_mcp/` and are required from `lib/rails_mcp.rb`; to keep files disjoint, T0
-> stubs the require lines for all planned submodules up front so no later ticket edits it.
+> stubs the require lines for all planned submodules up front so no later task edits it.
 
 ---
 
@@ -219,7 +219,7 @@ T4+T5. T7/T8 last.
 
 ## Decisions
 
-**DECIDED (locked in SPEC.md — do not relitigate):**
+**DECIDED (locked in spec.md — do not relitigate):**
 
 - Gem name / namespace: `rails_mcp` / `RailsMcp`.
 - Version floor: Ruby 3.2+, Rails 7.1+.
@@ -229,7 +229,7 @@ T4+T5. T7/T8 last.
   Only frozen seams are `authorize` and the notification event.
 - Args validation: use the official gem's JSON-Schema `input_schema`.
 
-**Still OPEN — decide at the referenced ticket (design-detail, conventional default is fine):**
+**Still OPEN — decide at the referenced task (design-detail, conventional default is fine):**
 
 - Server-side tier enforcement in v1? + verify pinned `mcp` emits annotations — **T2** (R5).
 - Event name + payload schema; confirm credentials excluded — **T3** (R4).

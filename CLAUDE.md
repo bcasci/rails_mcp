@@ -2,20 +2,33 @@
 
 A Ruby gem exposing selected Rails app actions to an AI client over MCP, on top of the
 official `mcp` gem. The gem ships conventions and seams only; each app owns authorization,
-audit, and (if it has it) tenancy. See `SPEC.md` (build contract), `TICKETS.md` (build
-breakdown), and `docs/adr/` (decisions).
+audit, and (if it has it) tenancy. Work is organized as **specs** under `specs/`: each spec
+is one capability in a numbered folder (`specs/0001-…/`) holding `spec.md` (requirements +
+acceptance criteria) and `tasks.md` (the build plan). Completed specs move to
+`specs/archive/`. See also `docs/adr/` (decisions).
 
 ## Building (the factory)
 
-- Implement tickets with the `spec-driven-dev` skill: read the ticket + its SPEC
-  requirements, test-first from the acceptance criteria, implement to green, run the gate.
-- `/implement` (`.claude/workflows/implement.js`) runs the whole build: builder agents per
-  ticket in dependency order, a per-layer gate + heal loop, an integration audit, and a
-  reflect stage. `/implement T3` builds one ticket.
+- Implement a task with the `spec-driven-dev` skill: read the task in its spec's `tasks.md`
+  + the referenced requirements in `spec.md`, test-first from the acceptance criteria,
+  implement to green, run the gate.
+- `/implement` (`.claude/workflows/implement.js`) builds a whole spec: a planner resolves
+  the spec folder and derives the dependency-ordered layers, builder agents run per task, a
+  per-layer gate + heal loop, an integration audit, a reflect stage, and an archive that
+  moves the finished spec to `specs/archive/`. `/implement 0001` builds one spec;
+  `/implement 0001 T3` builds one task.
 - Review is a separate pass by a different agent: `/code-review --fix`, guided by
   `REVIEW.md`. Never self-certify.
 - Naming/architecture/testing rules: `docs/conventions.md`. Generator specifics:
   `docs/generators.md`.
+
+## Specs
+
+- One spec = one capability whose tasks depend only on each other and on already-shipped
+  code. Tasks with build-time dependencies stay in the same spec. A new capability that
+  builds on shipped code gets its own numbered spec — never grow one spec into a monolith.
+- Numbering is monotonic (`0001`, `0002`, …), same scheme as `docs/adr/`; an archived spec
+  keeps its number.
 
 ## Recording decisions and learnings
 

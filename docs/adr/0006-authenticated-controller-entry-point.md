@@ -1,6 +1,12 @@
 # ADR-0006 — Authenticated controller entry point in front of the MCP transport
 
-Status: Accepted (2026-08-13)
+Status: Superseded by ADR-0008 (2026-08-13)
+
+> Superseded by [ADR-0008](0008-controller-uses-mcp-public-pattern.md): the `RailsMcp.serve`
+> mechanism this ADR introduced is replaced by the `mcp` gem's public controller pattern
+> (inline `MCP::Server` + `StreamableHTTPTransport#handle_request`), removing the private
+> `@server` reach. The app-owned, fail-closed `McpController` decision below still holds —
+> only its serve mechanism changed.
 
 ## Context
 

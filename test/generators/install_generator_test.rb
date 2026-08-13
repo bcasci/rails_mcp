@@ -105,12 +105,50 @@ class InstallGeneratorTest < Rails::Generators::TestCase
     end
   end
 
-  # R2: the resolve-acting-user → RailsMcp.serve flow is present as a marked,
-  # editable point in the controller.
-  def test_mcp_controller_serves_via_rails_mcp_serve
+  # R1: the controller builds the server on the `mcp` gem's public per-request
+  # pattern — a fresh MCP::Server from the registry's tools.
+  def test_mcp_controller_builds_server_on_public_mcp_api
     with_routes_file
     run_generator
-    assert_file "app/controllers/mcp_controller.rb", /RailsMcp\.serve/
+    assert_file "app/controllers/mcp_controller.rb" do |content|
+      assert_match(/MCP::Server\.new/, content, "controller must build a fresh MCP::Server")
+      assert_match(/RailsMcp\.registry\.tools/, content,
+        "the server's tool set must be RailsMcp.registry.tools (the allow-list)")
+    end
+  end
+
+  # R1: the controller serves via the public StreamableHTTPTransport#handle_request,
+  # passing the request and rendering the returned Rack triple.
+  def test_mcp_controller_serves_via_handle_request
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb" do |content|
+      assert_match(/StreamableHTTPTransport\.new/, content,
+        "controller must build the streamable-HTTP transport")
+      assert_match(/handle_request\(request\)/, content,
+        "controller must serve the request via handle_request")
+    end
+  end
+
+  # R1: the acting user rides server_context at construction (per-request identity),
+  # never by mutating a shared server.
+  def test_mcp_controller_sets_user_on_server_context
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb",
+      /server_context:\s*\{\s*user:\s*user\s*\}/
+  end
+
+  # R1: the controller references no removed gem entry point and no `mcp` private
+  # reach — only public `mcp` API and RailsMcp.registry.tools.
+  def test_mcp_controller_uses_no_removed_or_private_api
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb" do |content|
+      refute_match(/RailsMcp\.serve/, content, "no RailsMcp.serve — it is removed")
+      refute_match(/instance_variable_get/, content, "no `mcp` private reach")
+      refute_match(/mount_mcp/, content, "no mount_mcp — it is removed")
+    end
   end
 
   # R2/R4: the authentication seam is a clearly marked, commented editable point

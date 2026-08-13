@@ -69,3 +69,13 @@ Gotchas:
   `RailsMcp::Context`/identity wrapper class. The frozen contract is the keyword surface
   (`authorize(user:, args:, tool:)`, payload `{user, tool, args, result|error}`), not the
   transport of it.
+- Per-request identity is isolated by building a FRESH `MCP::Server` + stateless transport
+  per request in `RailsMcp.serve`, then setting `server_context` on it — never mutating a
+  shared, boot-time server (thread-unsafe under Puma; ADR-0006). The generated `McpController`
+  is the per-request instance that calls `serve`; `mount_mcp` is boot-time and shares one
+  `server_context`, so it is retained only for advanced/no-per-user mounts, not the default.
+- `serve` reaches the fresh transport's server via `transport.instance_variable_get(:@server)`
+  (`Serve.server_for`) because the pinned `mcp` gem exposes no public setter and reads
+  `server_context` off the server instance. This couples us to an `mcp` INTERNAL: on any `mcp`
+  bump, re-verify `@server` still holds the server and per-request isolation still holds (the
+  no-bleed test in `serve_test.rb`) before shipping.

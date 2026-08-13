@@ -12,8 +12,9 @@ module RailsMcp
     #
     # Everything this stamps is app-owned and editable — the gem ships no policy or
     # authentication (ADR-0004). The templates reference the gem's public API
-    # (`RailsMcp::Tool`, `RailsMcp.serve`, `RailsMcp.registry`, the `invoke.rails_mcp`
-    # event) but the seams' bodies are the app's to fill in.
+    # (`RailsMcp::Tool`, `RailsMcp.registry`) and the official `mcp` gem's public
+    # controller pattern (`MCP::Server` + `StreamableHTTPTransport#handle_request`),
+    # but the seams' bodies are the app's to fill in.
     class InstallGenerator < Rails::Generators::Base
       source_root File.expand_path("templates", __dir__)
 
@@ -53,9 +54,9 @@ module RailsMcp
       end
 
       # The `/mcp` route in config/routes.rb (spec 0002 R3). Routes the MCP request
-      # verbs (POST, GET, DELETE) to McpController#handle — NOT a direct `mount_mcp`
-      # mount — so the app authenticates and resolves the acting user before any tool
-      # runs. Injected inside the `routes.draw` block.
+      # verbs (POST, GET, DELETE) to McpController#handle — not a bare transport mount —
+      # so the app authenticates and resolves the acting user before any tool runs.
+      # Injected inside the `routes.draw` block.
       def add_mount_route
         route_content = File.read(File.expand_path("templates/routes_mount.rb.tt", __dir__)).strip
         route route_content

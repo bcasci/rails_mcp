@@ -14,17 +14,32 @@
 # That is intentional: a misconfigured install denies rather than exposes.
 class McpController < ApplicationController
   # One action serves every MCP request verb (POST, GET, DELETE). It authenticates
-  # the request, resolves the acting staff user, then hands the request to the gem's
-  # per-request serve entry point. The transport — not this action — decides per-verb
-  # behavior.
+  # the request, resolves the acting staff user, then serves the request on the
+  # official `mcp` gem's public per-request pattern. The transport — not this action —
+  # decides per-verb behavior.
   def handle
     user = authenticate_acting_user!
 
-    # Serve ONE MCP request with `user` on the SDK server_context for this request
-    # only (per-request isolation — no shared, process-wide server is mutated). The
-    # gem returns a Rack response triple the controller renders.
-    status, headers, body = RailsMcp.serve(request, user: user)
+    # Build a FRESH MCP::Server for THIS request, carrying `user` on server_context
+    # so per-request identity is never mutated on a shared, process-wide server
+    # (per-request isolation). `RailsMcp.registry.tools` is the allow-list — the exact
+    # set of tools this endpoint lists and can call. Both lines are yours to edit:
+    # swap in a custom registry or a plain `tools:` array to serve a different tool set
+    # on this route.
+    server = MCP::Server.new(
+      name: "rails_mcp",
+      tools: RailsMcp.registry.tools,
+      server_context: {user: user}
+    )
 
+    # The stateless streamable-HTTP transport is the `mcp` gem's Rack transport. Pass
+    # transport options here (allowed_hosts:, allowed_origins:, dns_rebinding_protection:)
+    # for your real deploy. `handle_request` takes this controller's request and returns
+    # a Rack response triple.
+    transport = MCP::Server::Transports::StreamableHTTPTransport.new(server, stateless: true)
+    status, headers, body = transport.handle_request(request)
+
+    # Render the Rack triple back through the controller. Customize rendering here.
     headers.each { |key, value| response.headers[key] = value }
     self.response_body = body
     self.status = status

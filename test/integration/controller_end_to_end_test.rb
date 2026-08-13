@@ -7,17 +7,20 @@ require "rack/test"
 require "json"
 require "timeout"
 
-# T2 / R2, R4, R5 integrated — the end-to-end proof for spec 0002's generated entry
+# T0 / R1, R2, R5 integrated — the end-to-end proof for spec 0003's generated entry
 # point: a request routed through an `McpController` equivalent to the stamped template
-# (`lib/generators/rails_mcp/install/templates/mcp_controller.rb.tt`) reaches
-# `RailsMcp.serve`, so a fresh install is securable end to end.
+# (`lib/generators/rails_mcp/install/templates/mcp_controller.rb.tt`) serves on the `mcp`
+# gem's public per-request pattern, so a fresh install is securable end to end.
 #
 # This exercises GENERATOR-SHAPED code, not a bespoke harness: the controller below
-# mirrors the template line-for-line — a single `handle` action that calls a fail-closed
-# `authenticate_acting_user!` seam, then `RailsMcp.serve(request, user:)`, rendering the
-# Rack triple back through the controller's response. The route matches the stamped
-# `routes_mount.rb.tt` (`/mcp` -> `mcp#handle` via GET/POST/DELETE). Real objects
-# throughout; the only stub is the app-side staff identity the gem never defines.
+# mirrors the template — a single `handle` action that calls a fail-closed
+# `authenticate_acting_user!` seam, then builds a FRESH `MCP::Server` with the acting
+# user on `server_context:` and serves the request with a stateless
+# `StreamableHTTPTransport#handle_request(request)`, rendering the Rack triple back
+# through the controller's response. No `RailsMcp.serve`, no `instance_variable_get`.
+# The route matches the stamped `routes_mount.rb.tt` (`/mcp` -> `mcp#handle` via
+# GET/POST/DELETE). Real objects throughout; the only stub is the app-side staff
+# identity the gem never defines.
 class ControllerEndToEndTest < Minitest::Test
   include Rack::Test::Methods
 
@@ -67,7 +70,14 @@ class ControllerEndToEndTest < Minitest::Test
     def handle
       user = authenticate_acting_user!
 
-      status, headers, body = RailsMcp.serve(request, user: user, registry: REGISTRY, allowed_hosts: ["example.org"])
+      # The public per-request pattern: a fresh MCP::Server per request carries THIS
+      # request's user on server_context, so no shared server is mutated. allowed_hosts
+      # admits rack-test's example.org host through the SDK's DNS-rebinding guard.
+      server = MCP::Server.new(name: "rails_mcp", tools: REGISTRY.tools, server_context: {user: user})
+      transport = MCP::Server::Transports::StreamableHTTPTransport.new(
+        server, stateless: true, allowed_hosts: ["example.org"]
+      )
+      status, headers, body = transport.handle_request(request)
 
       headers.each { |key, value| response.headers[key] = value }
       self.response_body = body

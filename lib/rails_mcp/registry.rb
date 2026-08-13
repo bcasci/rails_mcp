@@ -4,7 +4,8 @@ module RailsMcp
   # The allow-list surface (SPEC R10). The only tools an AI client can list or call
   # are the ones registered here; there is no generic executor and no console tool.
   # A registry holds registered tool classes (`RailsMcp::Tool` subclasses, or any
-  # `MCP::Tool`); `mount_mcp` builds the served MCP server from a registry's tools.
+  # `MCP::Tool`); the generated `McpController` builds the served MCP server from a
+  # registry's tools (`MCP::Server.new(tools: RailsMcp.registry.tools, ...)`).
   #
   # Registration is the app's explicit act of exposing a tool — a fresh registry is
   # empty, so nothing is callable until the app registers it (typically in the
@@ -43,7 +44,8 @@ module RailsMcp
 
   class << self
     # The process-wide default registry. The generated initializer registers the
-    # app's tools here, and `mount_mcp` reads it unless given an explicit registry.
+    # app's tools here, and the generated `McpController` reads it
+    # (`RailsMcp.registry.tools`) unless given an explicit registry.
     def registry
       @registry ||= Registry.new
     end

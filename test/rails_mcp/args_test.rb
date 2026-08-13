@@ -125,4 +125,71 @@ class ArgsTest < Minitest::Test
       build_tool { arg :household_id, :not_a_real_type }
     end
   end
+
+  # --- R1: DSL yields to an explicitly-set input_schema ------------------------
+  #
+  # A RailsMcp::Tool is an MCP::Tool subclass, so the raw `input_schema(...)` macro
+  # from the official gem is available. These tests exercise the composition the gem
+  # actually uses: a real MCP::Tool subclass with the Args mixin, so `super` reaches
+  # the gem's macro.
+  def build_mcp_tool(&block)
+    Class.new(MCP::Tool) do
+      extend RailsMcp::Args
+
+      tool_name "demo"
+      class_exec(&block) if block
+    end
+  end
+
+  # R1: a tool that sets a raw `input_schema(properties:, required:)` and declares no
+  # `arg` advertises the explicitly-set schema (not an empty DSL-built one). The
+  # server advertises via `to_h[:inputSchema]`, so assert there.
+  def test_raw_input_schema_with_no_arg_is_the_advertised_schema
+    tool = build_mcp_tool do
+      input_schema(properties: {q: {type: "string"}}, required: ["q"])
+    end
+
+    advertised = tool.to_h[:inputSchema]
+
+    assert_equal({q: {type: "string"}}, advertised[:properties])
+    assert_equal ["q"], advertised[:required]
+  end
+
+  # R1: a tool that uses `arg` and does not set `input_schema` still builds the schema
+  # from the declared args exactly as spec 0001 R1 froze — the advertised schema (via
+  # to_h) carries the declared arg.
+  def test_arg_only_tool_advertises_the_dsl_built_schema
+    tool = build_mcp_tool { arg :household_id, :integer, required: true }
+
+    advertised = tool.to_h[:inputSchema]
+
+    assert_equal "integer", advertised.dig(:properties, :household_id, :type)
+    assert_includes advertised[:required], "household_id"
+  end
+
+  # R1: when a tool BOTH uses `arg` and sets a raw `input_schema`, the explicitly-set
+  # schema wins (the explicit value is the escape hatch). The DSL arg does not appear.
+  def test_explicit_input_schema_wins_over_arg_when_both_present
+    tool = build_mcp_tool do
+      arg :household_id, :integer, required: true
+      input_schema(properties: {q: {type: "string"}}, required: ["q"])
+    end
+
+    advertised = tool.to_h[:inputSchema]
+
+    assert_equal({q: {type: "string"}}, advertised[:properties])
+    assert_equal ["q"], advertised[:required]
+    refute_includes Array(advertised[:required]), "household_id"
+  end
+
+  # R1: the explicit schema is authoritative on the validation path too (the gem's
+  # call_tool validation reads `input_schema`), so the two never fight.
+  def test_input_schema_getter_returns_the_explicit_schema_when_set
+    tool = build_mcp_tool do
+      arg :household_id, :integer, required: true
+      input_schema(properties: {q: {type: "string"}}, required: ["q"])
+    end
+
+    assert_equal({q: {type: "string"}}, tool.input_schema.to_h[:properties])
+  end
 end

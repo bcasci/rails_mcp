@@ -69,13 +69,14 @@ Gotchas:
   `RailsMcp::Context`/identity wrapper class. The frozen contract is the keyword surface
   (`authorize(user:, args:, tool:)`, payload `{user, tool, args, result|error}`), not the
   transport of it.
-- Per-request identity is isolated by building a FRESH `MCP::Server` + stateless transport
-  per request in `RailsMcp.serve`, then setting `server_context` on it — never mutating a
-  shared, boot-time server (thread-unsafe under Puma; ADR-0006). The generated `McpController`
-  is the per-request instance that calls `serve`; `mount_mcp` is boot-time and shares one
-  `server_context`, so it is retained only for advanced/no-per-user mounts, not the default.
-- `serve` reaches the fresh transport's server via `transport.instance_variable_get(:@server)`
-  (`Serve.server_for`) because the pinned `mcp` gem exposes no public setter and reads
-  `server_context` off the server instance. This couples us to an `mcp` INTERNAL: on any `mcp`
-  bump, re-verify `@server` still holds the server and per-request isolation still holds (the
-  no-bleed test in `serve_test.rb`) before shipping.
+- Per-request identity is isolated by building a FRESH `MCP::Server` per request INLINE in the
+  generated `McpController#handle`, passing `server_context: {user: user}` at construction, then
+  serving via `StreamableHTTPTransport#handle_request(request)` — all public `mcp` API. Never
+  mutate a shared, boot-time server (thread-unsafe under Puma; ADR-0008). There is no
+  `RailsMcp.serve`, `mount_mcp`, or `RailsMcp.rack_app` — spec 0003 removed them (ADR-0008
+  supersedes ADR-0006's serve mechanism). A bare no-per-user mount, if ever needed, is one line
+  of public `mcp` (`mount transport => "/mcp"`), not a gem feature.
+- No `mcp` private reach anywhere in `lib/`: no `instance_variable_get(:@server)`. The old
+  `serve` reached the server that way because the pinned `mcp` had no public setter; the public
+  controller pattern (`MCP::Server.new(server_context:)` per request) removes the need. This is
+  a machine-checkable standing constraint (ADR-0008) — keep `lib/` free of `mcp` internals.

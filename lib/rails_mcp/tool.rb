@@ -49,6 +49,16 @@ module RailsMcp
         MCP::Tool::Response.new([{type: "text", text: text}])
       end
 
+      # Optional co-located registration (SPEC R3). Called in a tool's own class body,
+      # `expose!` registers the tool on the process-wide `RailsMcp.registry` so it is
+      # listable/callable with no initializer entry. Explicit per tool — the gem never
+      # auto-registers by subclassing (R5). Idempotent via the registry (registering
+      # twice does not duplicate), so a reload re-running the class body is safe.
+      # Returns self so it reads as a declaration.
+      def expose!
+        RailsMcp.registry.register(self)
+      end
+
       private
 
       # Pull the acting staff user out of the app-populated context without inventing

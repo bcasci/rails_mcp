@@ -233,11 +233,13 @@ act-as-staff-user; a separate service identity is rejected for v1.
 - **Given** an invocation with no valid staff identity in context, **when** the tool runs,
   **then** it fails closed (per R3).
 
-**DECIDED** context object is a gem-defined wrapper carrying `user:` (the acting staff user,
-resolved app-side) and `args:`. It guarantees no tenant (ADR-0004: the gem has no tenant
+**DECIDED** ~~context object is a gem-defined wrapper carrying `user:` (the acting staff user,
+resolved app-side) and `args:`~~ — **superseded by ADR-0005**: the acting user rides the
+official SDK's existing `server_context`; the gem defines no wrapper class. Every other R9
+guarantee below still holds. It guarantees no tenant (ADR-0004: the gem has no tenant
 concept) and never carries the raw bearer token. The app populates `user:` in the
-Rack/controller layer that validates the token; the gem passes the wrapper to `authorize`
-and the notification payload.
+Rack/controller layer that validates the token; the gem reads `user:` from `server_context`
+and passes it to `authorize` and the notification payload.
 
 ### R10 — Allow-list (AI can invoke only registered tools)
 

@@ -1,0 +1,46 @@
+#!/bin/sh
+# Mechanical quality gate for agentic and human development. Runs standardrb on
+# staged Ruby, the minitest suite, and the ADR-constraint greps. Blocks the
+# commit on any failure. Cannot be bypassed without --no-verify, which the
+# process-lock Claude hook denies.
+#
+# Pre-commit is the canonical gate; CI re-runs the same checks on push as
+# defense-in-depth (bypassed hooks, amended commits, force-pushes).
+
+set -e
+
+# Run from the working-tree root so binstubs resolve in the main checkout or a
+# git worktree the work happens in.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# standardrb on staged Ruby.
+STAGED_RB=$(git diff --cached --name-only --diff-filter=ACM -- '*.rb' || true)
+if [ -n "$STAGED_RB" ]; then
+  echo "[pre-commit] standardrb: checking staged .rb files..."
+  echo "$STAGED_RB" | xargs bundle exec standardrb
+  echo "[pre-commit] standardrb: clean"
+else
+  echo "[pre-commit] standardrb: no staged .rb files, skipping"
+fi
+
+# ADR-constraint greps (ADR-0001, ADR-0004): no hand-rolled JSON-RPC, no
+# arbitrary-Ruby/console execution path, no debugger left in lib/.
+echo "[pre-commit] ADR constraints: scanning lib/..."
+if [ -d lib ]; then
+  if grep -RnE 'binding\.(pry|irb)' lib/ 2>/dev/null; then
+    echo "[pre-commit] BLOCKED: debugger (binding.pry/irb) left in lib/."
+    exit 1
+  fi
+  if grep -RnE '\b(instance_eval|class_eval|Kernel\.eval|[^.]\beval)\(' lib/ 2>/dev/null; then
+    echo "[pre-commit] BLOCKED: arbitrary-Ruby eval in lib/ (ADR-0004: allow-list only, no console)."
+    exit 1
+  fi
+fi
+echo "[pre-commit] ADR constraints: clean"
+
+# Minitest suite — the regression gate.
+echo "[pre-commit] Tests: running suite..."
+bundle exec rake test
+echo "[pre-commit] Tests: green"
+
+echo "[pre-commit] All checks passed."

@@ -28,6 +28,8 @@ The top-level constant is `RailsMcp` and the tool dir is `app/mcp/`.
 **Depends on:** none.
 **Acceptance (R12):**
 - Gemspec declares the official `mcp` gem as a pinned dependency; `bundle install` succeeds.
+- Gemspec declares the test-group dev deps used downstream: `rack-test` and `rails` (for the
+  T7 mounted `/mcp` integration test), alongside minitest/standard.
 - `require "rails_mcp"` loads without error and exposes the `RailsMcp` namespace.
 - No hand-rolled JSON-RPC/transport in the gem (delegated to `mcp`).
 - `rake` runs the (initially empty) test suite green.

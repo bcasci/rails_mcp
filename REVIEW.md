@@ -25,9 +25,11 @@ needs a `file:line` citation — no speculative findings.
 - Flag tautological/always-green tests, tests with no meaningful assertion, and duplicate
   coverage of a behavior already tested elsewhere.
 - **Over-mocking is a finding.** Flag: mocks of the unit under test or the gem's own classes;
-  assertions that a method "was called" with no outcome check; a stub returning a shape the
-  real method never produces; a stubbed boundary with no integration/contract test exercising
-  the real thing. A green test over an unrealistic stub is a real bug hiding.
+  a stub returning a shape the real method never produces; a stubbed `mcp`-gem surface with no
+  real-transport integration test on the same path; an all-mocks suite. A green test over an
+  unrealistic stub is a real bug hiding. (Interaction assertions ARE correct for fire-and-forget
+  side effects — "notification fired exactly once / not on deny" — and command ordering; don't
+  flag those.)
 
 ## Spec adherence
 

@@ -33,13 +33,68 @@ It stamps, all **app-owned and editable**:
 |------|------------|
 | `app/mcp/application_mcp_tool.rb` | your base tool (like `ApplicationController`); **fail-closed** authorize seam + audit note |
 | `app/mcp/example_read_only_tool.rb` | one read-only example tool to copy |
+| `app/controllers/mcp_controller.rb` | the HTTP entry point in front of `/mcp`; **fail-closed** authentication seam (ADR-0006) |
 | `config/initializers/rails_mcp.rb` | registers tools (the allow-list) and points at the audit subscribe seam |
 | `test/mcp/example_read_only_tool_test.rb` | example safety tests: authz denial + one audit event |
-| `config/routes.rb` | gains the `mount_mcp '/mcp'` line |
+| `config/routes.rb` | gains the `/mcp` route to `McpController` (not a direct `mount_mcp` mount) |
 
-As stamped the install **fails closed**: `ApplicationMcpTool#authorize` raises, so every call
-is denied until you wire your real check. That is intentional — a misconfigured install denies
-rather than exposes.
+As stamped the install **fails closed at two layers**: `McpController#authenticate_acting_user!`
+raises, so `/mcp` denies every request until you wire authentication; and
+`ApplicationMcpTool#authorize` raises, so every tool call is denied until you wire your real
+check. That is intentional — a misconfigured install denies rather than exposes.
+
+---
+
+## 1a. Secure the HTTP entry point — `McpController` (required)
+
+The generator routes `/mcp` to an **app-owned** `McpController < ApplicationController`
+(`app/controllers/mcp_controller.rb`), not a direct transport mount. This is the app-owned
+place to authenticate the HTTP request and resolve the acting staff `User` **before any tool
+runs** (ADR-0006). The gem ships no authentication (ADR-0004); it defines *where* auth goes,
+you define *what* it is.
+
+A single `handle` action serves every MCP request verb: it calls the authentication seam,
+resolves the acting user, then hands the request to the gem's per-request entry point
+`RailsMcp.serve`, which returns a Rack response the controller renders:
+
+```ruby
+class McpController < ApplicationController
+  def handle
+    user = authenticate_acting_user!
+
+    status, headers, body = RailsMcp.serve(request, user: user)
+
+    headers.each { |key, value| response.headers[key] = value }
+    self.response_body = body
+    self.status = status
+  end
+
+  private
+
+  # Fail-closed by default: as stamped this RAISES, so /mcp denies until you wire it.
+  # Replace the raise with your app's real check (Devise, a session, a bearer token):
+  #
+  #   def authenticate_acting_user!
+  #     authenticate_user!   # your ApplicationController auth
+  #     current_user         # the resolved acting staff user
+  #   end
+  def authenticate_acting_user!
+    raise RailsMcp::NotAuthorized, "unauthenticated until secured"
+  end
+end
+```
+
+`RailsMcp.serve(request, user:, registry: RailsMcp.registry, **transport_options)` runs **one**
+MCP request with `user` placed on the SDK `server_context` **for that request only** — it never
+mutates a shared, process-wide server, so per-request identity is thread-safe under Puma
+(ADR-0006). `request` may be an `ActionDispatch::Request` or a raw Rack env Hash. The resolved
+`user:` is the only identity handed to the gem; the raw request and any bearer token never reach
+`server_context` or the audit payload. `transport_options` pass through to the transport
+(`server_name:`, `allowed_hosts:`, etc. — same as [`mount_mcp`](#5-advanced-mount_mcp-for-a-no-per-user-mount)).
+
+Because `McpController` inherits your `ApplicationController`, it reuses your existing auth
+stack. The `/mcp` endpoint is **unauthenticated until you secure it here** — wire real auth in
+`authenticate_acting_user!` before exposing the endpoint.
 
 ---
 
@@ -158,9 +213,14 @@ arg :name, :type, required: false, description: nil
 
 ---
 
-## 5. Mount the endpoint (R6)
+## 5. Advanced: `mount_mcp` for a no-per-user mount
 
-The generator adds this to `config/routes.rb`:
+The **generated default is `McpController`** (section 1a) — route `/mcp` through the controller
+so each request authenticates and gets its own acting user. `mount_mcp` / `RailsMcp.rack_app`
+are **retained** for advanced or no-per-user internal mounts, but are no longer stamped by the
+generator (ADR-0006).
+
+`mount_mcp` mounts the transport directly in `config/routes.rb`:
 
 ```ruby
 mount_mcp '/mcp'
@@ -173,9 +233,16 @@ mount_mcp '/mcp'
 - Extra keyword args pass through to the transport, e.g. `mount_mcp '/mcp', allowed_hosts:
   ["app.example.com"], server_name: "myapp"`.
 
-Your app is responsible for the Rack/controller layer that validates the bearer token,
-resolves the staff `User`, and puts it on `server_context` before dispatch — that is what
-makes `user` available to `authorize` and the audit event.
+**Caveat — single shared `server_context`.** A direct `mount_mcp` builds **one** `MCP::Server`
+at boot; the `mcp` gem reads `server_context` off that shared instance. Giving each request its
+own acting user through a direct mount means mutating that shared server's `server_context` per
+request — a data race under a threaded server (Puma). Use `mount_mcp` only where per-request
+identity is not needed (a single fixed service user, or no user); for per-user auth use
+`McpController` + `RailsMcp.serve` (section 1a), which isolates `server_context` per request.
+
+With a direct mount, your app is responsible for the Rack/controller layer that validates the
+bearer token, resolves the staff `User`, and puts it on `server_context` before dispatch — the
+same identity contract, without the per-request isolation `McpController` gives you.
 
 ---
 

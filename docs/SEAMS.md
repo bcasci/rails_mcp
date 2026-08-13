@@ -18,6 +18,14 @@ Rack/controller layer validates the bearer token, resolves the **real staff `Use
 puts it on the SDK's `server_context` when it dispatches to `MCP::Server`. The gem reads
 `user` off that context and passes it into both seams (R9).
 
+In the generated default, that Rack/controller layer is the app-owned `McpController`
+(ADR-0006): it authenticates each request, resolves the acting `User`, and calls
+`RailsMcp.serve`, which places that user on the SDK `server_context` **per request** — for
+that request only, never mutating a shared, process-wide server. The identity contract here
+is **unchanged** (ADR-0005): the acting user still rides `server_context` and reaches
+`authorize` / the audit payload exactly as below. `McpController` is only the app-owned place
+that populates it per request; it adds no `authorize`/payload keys.
+
 `server_context` may be either shape (`RailsMcp::Tool.call` accepts both — see
 `lib/rails_mcp/tool.rb`):
 

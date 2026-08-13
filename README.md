@@ -26,8 +26,22 @@ bundle install
 rails g rails_mcp:install
 ```
 
-This stamps an app-owned, fail-closed `ApplicationMcpTool`, a `/mcp` mount, an
-initializer, one read-only example tool, and example tests.
+This stamps, all app-owned and editable: a fail-closed `ApplicationMcpTool`, a
+fail-closed `McpController` in front of the `/mcp` endpoint, the `/mcp` route to that
+controller, an initializer, one read-only example tool, and example tests.
+
+### Secure the `/mcp` endpoint (required)
+
+The generated `app/controllers/mcp_controller.rb` is where the HTTP request is
+authenticated before any tool runs. It is **fail-closed by default**: as stamped, its
+`authenticate_acting_user!` seam raises, so `/mcp` denies **every** request until you
+wire your app's real authentication there (Devise, a session, a bearer token — whatever
+`ApplicationController` provides). A fresh install is unauthenticated until you secure it;
+the default denies rather than exposes.
+
+This is a second seam alongside the tool `authorize` check: `McpController` resolves *who*
+the acting staff user is; `authorize` decides *what* that user may do. See
+[`docs/USAGE.md`](docs/USAGE.md) for the full flow.
 
 ## Usage
 

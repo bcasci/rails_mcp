@@ -1,5 +1,7 @@
 # TASKS — `rails_mcp` authenticated MCP controller entry point
 
+Completed Thu Aug 13 09:02:36 EDT 2026 at commit 7d3ff1c
+
 Task breakdown for spec 0002. Same hard constraint as 0001: **each task owns a DISJOINT set
 of files** — no two tasks in this spec touch the same file, so agents build without merge
 conflicts. This spec builds on the shipped v1 framework (spec 0001, archived): `RailsMcp::Tool`
@@ -18,7 +20,7 @@ The top-level constant is `RailsMcp`; the tool dir is `app/mcp/`; controllers li
 
 ## Layer 0 — Per-request serve runtime (must land first)
 
-### T0 — `RailsMcp.serve` per-request entry point
+### T0 — `RailsMcp.serve` per-request entry point — DONE
 **Owns:**
 - `lib/rails_mcp/serve.rb` (the `RailsMcp.serve(request, user:, registry:, **opts)` entry
   point; per-request `server_context` isolation over the stateless transport; returns a Rack
@@ -54,7 +56,7 @@ transport is `server_context` (ADR-0005).
 
 ## Layer 1 — Generator: controller, route, security notice
 
-### T1 — Generated `McpController` + route change + generator output
+### T1 — Generated `McpController` + route change + generator output — DONE
 **Owns:**
 - `lib/generators/rails_mcp/install/templates/mcp_controller.rb.tt` (NEW:
   `McpController < ApplicationController`; fail-closed authentication seam that raises by
@@ -88,7 +90,7 @@ transport is `server_context` (ADR-0005).
 
 ## Layer 2 — Docs + end-to-end verification through the controller
 
-### T2 — README + docs + controller integration test
+### T2 — README + docs + controller integration test — DONE
 **Owns:**
 - `README.md` (CHANGED: document the `McpController` authentication step as part of install —
   the endpoint denies until secured — alongside the existing tool `authorize` seam)

@@ -39,8 +39,14 @@ may be faked.
   `ActiveSupport::Notifications.subscribed(handler, "invoke.rails_mcp") { … }` — auto-unsubscribes;
   `assert_notification` is Rails 8+, hand-roll on 7.1); and `authorize`-before-`perform` order.
 - **Never mock the unit under test or the gem's own classes.**
-- **Never stub the `mcp` gem — drive it real.** Unit (T1/T5): `MCP::Server#handle(hash, session: nil)`
-  / `#handle_json` in-process. Integration (T7): mount real `StreamableHTTPTransport` at `/mcp`.
+- **Use the `mcp` gem for real** — it's in-process, fast, and deterministic, so mocking it
+  would only test your guess of its API. Unit (T1/T5): `MCP::Server#handle(hash, session: nil)`
+  / `#handle_json`. Integration (T7): mount real `StreamableHTTPTransport` at `/mcp`.
+- **Network boundary** (a third-party HTTP service you don't own): stub the wire with WebMock,
+  or record real responses with VCR — the right tool, not a violation. ("Don't mock what you
+  don't own" forbids mock *expectations* on a third party's Ruby API, not stubbing HTTP; VCR
+  replays real recorded responses.) This gem's own suite has none — the `mcp` dependency is
+  in-process — so it needs neither; reach for them only if a test you own hits a real service.
 - **App-side fakes, only at the boundary,** each honoring the real contract
   (`authorize(user:, args:, tool:)`): fake staff user, fake tenant (cross-tenant denial lives
   in the dummy app, never gem code), stub `ApplicationMcpTool`.

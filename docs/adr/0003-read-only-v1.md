@@ -1,6 +1,6 @@
 # ADR-0003 — Read-only v1 (no mutations)
 
-Status: Accepted (2026-08-12)
+Status: Superseded by [ADR-0012](0012-gem-is-a-neutral-mcp-conduit.md) (2026-08-13)
 
 ## Context
 

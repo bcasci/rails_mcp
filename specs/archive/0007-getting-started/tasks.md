@@ -1,5 +1,7 @@
 # TASKS — Getting started: install to first `/mcp` call
 
+Completed Thu Aug 13 12:31:08 EDT 2026 at commit 9e0d17e
+
 Task breakdown for spec 0007. Docs-only; no gem runtime change. Builds on shipped specs
 0001–0006 (archived — tenancy already stripped, so the recipe reflects the post-strip surface).
 References like `R1` point to this spec's `spec.md`. Run **after** spec 0006 (both edit
@@ -11,7 +13,7 @@ Every task is `autonomous` — decisions locked in spec.md.
 
 ## Layer 0 — The recipe
 
-### T1 — Token setup + JSON-RPC handshake in USAGE, condensed in README
+### T1 — Token setup + JSON-RPC handshake in USAGE, condensed in README — DONE
 **Owns:**
 - `docs/USAGE.md` (CHANGED: add a "Make your first call" section — the `api_token` migration,
   `SecureRandom.hex(24)` staff seed, `staff` scope, the note to override
@@ -25,7 +27,7 @@ Every task is `autonomous` — decisions locked in spec.md.
 real tool name `example_read_only` and `POST /mcp`; README carries the condensed form.
 **Tag:** `autonomous`.
 
-### T2 — Client-auth reality note + CHANGELOG
+### T2 — Client-auth reality note + CHANGELOG — DONE
 **Owns:**
 - `docs/SEAMS.md` (CHANGED, only if the transport/first-call note fits there; else fold into
   USAGE under T1 — keep files disjoint: if T1 owns USAGE, T2 adds the note to SEAMS or README's
@@ -42,7 +44,7 @@ from T1's USAGE/README). If the builder prefers the note in USAGE, sequence afte
 
 ## Layer 1 — Gate
 
-### T3 — Gate + no-runtime-change proof
+### T3 — Gate + no-runtime-change proof — DONE
 **Owns:** (no new files; runs the gate)
 **Depends on:** T1, T2.
 **Acceptance (R2, R5):**

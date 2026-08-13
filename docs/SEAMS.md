@@ -19,8 +19,8 @@ puts it on the SDK's `server_context` when it dispatches to `MCP::Server`. The g
 `user` off that context and passes it into both seams (R9).
 
 In the generated default, that Rack/controller layer is the app-owned `McpController`
-(ADR-0006): it authenticates each request, resolves the acting `User`, and calls
-`RailsMcp.serve`, which places that user on the SDK `server_context` **per request** — for
+(ADR-0008): it authenticates each request, resolves the acting `User`, then builds a **fresh
+`MCP::Server`** on public `mcp` API with that user on `server_context:` at construction — for
 that request only, never mutating a shared, process-wide server. The identity contract here
 is **unchanged** (ADR-0005): the acting user still rides `server_context` and reaches
 `authorize` / the audit payload exactly as below. `McpController` is only the app-owned place

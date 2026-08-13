@@ -46,7 +46,8 @@ the acting staff user is; `authorize` decides *what* that user may do. See
 ## Usage
 
 - [`docs/USAGE.md`](docs/USAGE.md) — install, wire the two seams, the args DSL, writing a
-  read-only tool, registering the allow-list, mounting, tenancy, and testing.
+  read-only tool, registering the allow-list, the app-owned controller and its customization
+  seams, tenancy, and testing.
 - [`docs/SEAMS.md`](docs/SEAMS.md) — the frozen contracts: `authorize` (fail-closed) and the
   `invoke.rails_mcp` audit payload.
 

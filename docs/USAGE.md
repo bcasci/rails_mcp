@@ -33,10 +33,10 @@ It stamps, all **app-owned and editable**:
 |------|------------|
 | `app/mcp/application_mcp_tool.rb` | your base tool (like `ApplicationController`); **fail-closed** authorize seam + audit note |
 | `app/mcp/example_read_only_tool.rb` | one read-only example tool to copy |
-| `app/controllers/mcp_controller.rb` | the HTTP entry point in front of `/mcp`; **fail-closed** authentication seam (ADR-0006) |
+| `app/controllers/mcp_controller.rb` | the HTTP entry point in front of `/mcp`; **fail-closed** authentication seam (ADR-0008) |
 | `config/initializers/rails_mcp.rb` | registers tools (the allow-list) and points at the audit subscribe seam |
 | `test/mcp/example_read_only_tool_test.rb` | example safety tests: authz denial + one audit event |
-| `config/routes.rb` | gains the `/mcp` route to `McpController` (not a direct `mount_mcp` mount) |
+| `config/routes.rb` | gains the `/mcp` route to `McpController#handle` |
 
 As stamped the install **fails closed at two layers**: `McpController#authenticate_acting_user!`
 raises, so `/mcp` denies every request until you wire authentication; and
@@ -50,20 +50,37 @@ check. That is intentional — a misconfigured install denies rather than expose
 The generator routes `/mcp` to an **app-owned** `McpController < ApplicationController`
 (`app/controllers/mcp_controller.rb`), not a direct transport mount. This is the app-owned
 place to authenticate the HTTP request and resolve the acting staff `User` **before any tool
-runs** (ADR-0006). The gem ships no authentication (ADR-0004); it defines *where* auth goes,
+runs** (ADR-0008). The gem ships no authentication (ADR-0004); it defines *where* auth goes,
 you define *what* it is.
 
-A single `handle` action serves every MCP request verb: it calls the authentication seam,
-resolves the acting user, then hands the request to the gem's per-request entry point
-`RailsMcp.serve`, which returns a Rack response the controller renders:
+A single `handle` action serves every MCP request verb. It authenticates the request, resolves
+the acting user, then serves it on the official `mcp` gem's **public per-request pattern**: it
+builds a **fresh `MCP::Server`** carrying `user` on `server_context`, wraps it in the stateless
+`StreamableHTTPTransport`, and renders the Rack triple that `handle_request(request)` returns.
+No gem call sits between the controller and `mcp` — the tool source and the transport are
+visible, editable lines you own:
 
 ```ruby
 class McpController < ApplicationController
   def handle
     user = authenticate_acting_user!
 
-    status, headers, body = RailsMcp.serve(request, user: user)
+    # A FRESH server per request, carrying `user` on server_context — never a
+    # shared, process-wide server mutated per request. `RailsMcp.registry.tools`
+    # is the allow-list; swap it for a custom registry or a plain `tools:` array
+    # to serve a different tool set on this route.
+    server = MCP::Server.new(
+      name: "rails_mcp",
+      tools: RailsMcp.registry.tools,
+      server_context: {user: user}
+    )
 
+    # Pass transport options here for your real deploy (allowed_hosts:,
+    # allowed_origins:, dns_rebinding_protection:).
+    transport = MCP::Server::Transports::StreamableHTTPTransport.new(server, stateless: true)
+    status, headers, body = transport.handle_request(request)
+
+    # Render the Rack triple back through the controller. Customize rendering here.
     headers.each { |key, value| response.headers[key] = value }
     self.response_body = body
     self.status = status
@@ -84,13 +101,11 @@ class McpController < ApplicationController
 end
 ```
 
-`RailsMcp.serve(request, user:, registry: RailsMcp.registry, **transport_options)` runs **one**
-MCP request with `user` placed on the SDK `server_context` **for that request only** — it never
-mutates a shared, process-wide server, so per-request identity is thread-safe under Puma
-(ADR-0006). `request` may be an `ActionDispatch::Request` or a raw Rack env Hash. The resolved
-`user:` is the only identity handed to the gem; the raw request and any bearer token never reach
-`server_context` or the audit payload. `transport_options` pass through to the transport
-(`server_name:`, `allowed_hosts:`, etc. — same as [`mount_mcp`](#5-advanced-mount_mcp-for-a-no-per-user-mount)).
+Building the `MCP::Server` **per request** with `user` on `server_context:` at construction
+is what keeps identity thread-safe under Puma: two concurrent requests build two servers, so
+neither can see the other's user (ADR-0008). The resolved `user:` is the only identity handed
+to the gem; the raw request and any bearer token never reach `server_context` or the audit
+payload.
 
 Because `McpController` inherits your `ApplicationController`, it reuses your existing auth
 stack. The `/mcp` endpoint is **unauthenticated until you secure it here** — wire real auth in
@@ -213,36 +228,64 @@ arg :name, :type, required: false, description: nil
 
 ---
 
-## 5. Advanced: `mount_mcp` for a no-per-user mount
+## 5. Customize the controller (app-owned seams) — R4
 
-The **generated default is `McpController`** (section 1a) — route `/mcp` through the controller
-so each request authenticates and gets its own acting user. `mount_mcp` / `RailsMcp.rack_app`
-are **retained** for advanced or no-per-user internal mounts, but are no longer stamped by the
-generator (ADR-0006).
+`McpController` is app-owned and inline (section 1a): the tool source and the transport
+construction are **visible, editable lines**, not hidden behind a gem call. That is the
+extension model — get specific in the controller without fighting the gem (ADR-0007). Three
+common customizations:
 
-`mount_mcp` mounts the transport directly in `config/routes.rb`:
+### A different tool set per route
+
+`RailsMcp.registry.tools` is the default allow-list. To serve a different set on a given route,
+build the `MCP::Server` from a **custom `RailsMcp::Registry`** or a plain **`tools:` array**:
 
 ```ruby
-mount_mcp '/mcp'
+# A custom registry (e.g. a read-only subset for a public route):
+PUBLIC_REGISTRY = RailsMcp::Registry.new
+PUBLIC_REGISTRY.register(Households::LookupTool)
+
+server = MCP::Server.new(
+  name: "rails_mcp",
+  tools: PUBLIC_REGISTRY.tools,          # or: [Households::LookupTool]
+  server_context: {user: user}
+)
 ```
 
-- Mounts the official gem's Rack transport in **stateless** HTTP mode (ADR-0002) in the same
-  Rails process — no SSE, so no idle-timeout/thread-starvation. AI clients keep their own
-  session state.
-- `tools/list` returns only registered tools; `tools/call` on an unregistered tool is refused.
-- Extra keyword args pass through to the transport, e.g. `mount_mcp '/mcp', allowed_hosts:
-  ["app.example.com"], server_name: "myapp"`.
+Route two paths to two controllers (or two actions), each building its own server, to expose
+different tool sets on different endpoints.
 
-**Caveat — single shared `server_context`.** A direct `mount_mcp` builds **one** `MCP::Server`
-at boot; the `mcp` gem reads `server_context` off that shared instance. Giving each request its
-own acting user through a direct mount means mutating that shared server's `server_context` per
-request — a data race under a threaded server (Puma). Use `mount_mcp` only where per-request
-identity is not needed (a single fixed service user, or no user); for per-user auth use
-`McpController` + `RailsMcp.serve` (section 1a), which isolates `server_context` per request.
+### Transport options
 
-With a direct mount, your app is responsible for the Rack/controller layer that validates the
-bearer token, resolves the staff `User`, and puts it on `server_context` before dispatch — the
-same identity contract, without the per-request isolation `McpController` gives you.
+`StreamableHTTPTransport` takes the `mcp` gem's transport options — pass them where you build
+the transport, for your real deploy:
+
+```ruby
+transport = MCP::Server::Transports::StreamableHTTPTransport.new(
+  server,
+  stateless: true,
+  allowed_hosts: ["app.example.com"],
+  allowed_origins: ["https://app.example.com"],
+  dns_rebinding_protection: true
+)
+```
+
+### Rendering
+
+`handle_request` returns a Rack triple `[status, headers, body]`; the controller renders it.
+Customize rendering there — add a response header, wrap the body, or branch on status:
+
+```ruby
+status, headers, body = transport.handle_request(request)
+
+headers.each { |key, value| response.headers[key] = value }
+response.headers["X-Request-Id"] = request.request_id   # your customization
+self.response_body = body
+self.status = status
+```
+
+All three are ordinary controller code in a file your app owns — the gem ships no boot-time
+mount and no `serve` wrapper to reach around.
 
 ---
 

@@ -325,7 +325,7 @@ call the `mcp` gem's `annotations` macro directly; the DSL yields to it.
 ```ruby
 class Reports::ExportTool < ApplicationMcpTool
   tool_name "reports_export"
-  annotations(readOnlyHint: true, idempotentHint: true)   # emitted as-is
+  annotations(read_only_hint: true, idempotent_hint: true)   # emitted as-is
 end
 ```
 

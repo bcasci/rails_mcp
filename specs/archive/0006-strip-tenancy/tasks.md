@@ -1,5 +1,7 @@
 # TASKS — strip tenancy from the shipped surface
 
+Completed Thu Aug 13 12:20:59 EDT 2026 at commit 24943ec
+
 Task breakdown for spec 0006. Each task owns a DISJOINT set of files. Builds on shipped specs
 0001–0005 (archived). References like `R1` point to this spec's `spec.md`. Governing decision:
 ADR-0010. Tasks T1–T4 are independent (disjoint files), parallel; T5 is the gate, after all.
@@ -10,7 +12,7 @@ Every task is `autonomous` — decisions locked in spec.md / ADR-0010.
 
 ## Layer 0 — Strip (parallel, disjoint files)
 
-### T1 — Controller template + lib header + generator test
+### T1 — Controller template + lib header + generator test — DONE
 **Owns:**
 - `lib/generators/rails_mcp/install/templates/mcp_controller.rb.tt` (CHANGED: replace the
   tenant/shard scoped-context block with the neutral, tenancy-free fact — `authorize` runs
@@ -30,7 +32,7 @@ Every task is `autonomous` — decisions locked in spec.md / ADR-0010.
 scrubbed; generator tests green without the tenancy assertions.
 **Tag:** `autonomous`.
 
-### T2 — `ApplicationMcpTool` template
+### T2 — `ApplicationMcpTool` template — DONE
 **Owns:**
 - `lib/generators/rails_mcp/install/templates/application_mcp_tool.rb.tt` (CHANGED: delete the
   entire `TENANT SCOPING (optional — only if your app is multi-tenant)` comment block)
@@ -39,7 +41,7 @@ scrubbed; generator tests green without the tenancy assertions.
 **Acceptance (R2):** no tenancy how-to remains in the stamped base tool.
 **Tag:** `autonomous`.
 
-### T3 — Docs scrub (USAGE, SEAMS, README, conventions, generators, generator .rb comment)
+### T3 — Docs scrub (USAGE, SEAMS, README, conventions, generators, generator .rb comment) — DONE
 **Owns:**
 - `docs/USAGE.md` (CHANGED: delete `## 6. Tenancy …` section entirely, including the
   `with_shard` example and the "Recovering the tenant in the audit subscriber" subsection;
@@ -62,7 +64,7 @@ scrubbed; generator tests green without the tenancy assertions.
 `mount_mcp`/`serve`/`rack_app` references remain.
 **Tag:** `autonomous`.
 
-### T4 — Tests + fixtures: remove tenancy-only, keep the rest green
+### T4 — Tests + fixtures: remove tenancy-only, keep the rest green — DONE
 **Owns:**
 - `test/rails_mcp/tenant_guidance_docs_test.rb` (DELETE — 8 pure doc-string assertions, zero
   invoke behavior)
@@ -89,7 +91,7 @@ pass; `dummy_app/` gone.
 
 ## Layer 1 — Gate
 
-### T5 — Full gate + tenancy-clean proof
+### T5 — Full gate + tenancy-clean proof — DONE
 **Owns:** (no new files; runs the gate)
 **Depends on:** T1, T2, T3, T4.
 **Acceptance (R1, R3, R4):**

@@ -35,8 +35,20 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  # Uncomment to register a new dependency of your gem
-  # spec.add_dependency "example-gem", "~> 1.0"
+  # Protocol plumbing is delegated to the official `mcp` gem (ADR-0001): JSON-RPC,
+  # the Rack transport, tool schemas, and annotations all come from it. Pinned so
+  # the annotation-emitting behavior (SDK #259) the DSL relies on stays stable.
+  spec.add_dependency "mcp", "~> 1.1"
+
+  # Rails supplies ActiveSupport::Notifications (the audit seam, R4) and the
+  # generator/engine host.
+  spec.add_dependency "railties", ">= 7.1"
+  spec.add_dependency "activesupport", ">= 7.1"
+
+  # Test-group dev deps used downstream: rack-test drives the mounted `/mcp`
+  # endpoint (T5/T7), rails hosts the T7 dummy-app integration test.
+  spec.add_development_dependency "rack-test"
+  spec.add_development_dependency "rails", ">= 7.1"
 
   # For more information and examples about making a new gem, check out our
   # guide at: https://bundler.io/guides/creating_gem.html

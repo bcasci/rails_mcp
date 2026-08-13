@@ -289,6 +289,94 @@ mount and no `serve` wrapper to reach around.
 
 ---
 
+## 5a. Opting out — every convenience peels back to a raw `mcp` primitive (ADR-0007)
+
+The gem is opinionated defaults, not a cage. Each convenience above yields to a lower-level
+`mcp` primitive when you need to get specific — **document-only, no warning and no block**: an
+opt-out is your informed choice, and the gem never nannies it (ADR-0007).
+
+### A raw `input_schema` overrides the `arg` DSL
+
+When you need a JSON Schema the `arg` DSL cannot express (a nested object, a `oneOf`, a pattern),
+set the `mcp` gem's `input_schema` macro directly. The DSL **yields to it**: if you set a raw
+`input_schema`, that is the advertised schema; the `arg` DSL builds one only when you use `arg`.
+If you set both, the explicit `input_schema` wins.
+
+```ruby
+class Households::LookupTool < ApplicationMcpTool
+  tool_name "households_lookup"
+  # A raw schema — advertised as-is; the arg DSL is not consulted.
+  input_schema(
+    properties: {filter: {type: "object", properties: {status: {type: "string"}}}},
+    required: ["filter"]
+  )
+
+  def perform(**args)
+    text_response("...")
+  end
+end
+```
+
+### A raw `annotations` overrides `read_only!`
+
+`read_only!` is shorthand for one annotation. To advertise other hints (or set them by hand),
+call the `mcp` gem's `annotations` macro directly; the DSL yields to it.
+
+```ruby
+class Reports::ExportTool < ApplicationMcpTool
+  tool_name "reports_export"
+  annotations(readOnlyHint: true, idempotentHint: true)   # emitted as-is
+end
+```
+
+### `expose!` — co-locate registration in the tool
+
+Instead of listing a tool in the initializer, call `expose!` in its own class body. It registers
+the tool on `RailsMcp.registry` — explicit and idempotent (safe across reloads), and still no
+auto-discovery: a subclass you never `register` or `expose!` is never exposed.
+
+```ruby
+class Households::LookupTool < ApplicationMcpTool
+  tool_name "households_lookup"
+  expose!   # on the allow-list with no initializer entry
+end
+```
+
+The install generator's default stays **central** registration in the initializer (section 3);
+`expose!` is an alternative, not the new default.
+
+### A raw `MCP::Tool` — outside the gem pipeline (unaudited, your choice)
+
+Register a plain `MCP::Tool` (not a `RailsMcp::Tool`) through the ordinary `register` and it is
+listable and callable like any other tool — but it runs **outside the gem's pipeline**: it gets
+**no `authorize` seam and no `invoke.rails_mcp` audit event**, because those belong to
+`RailsMcp::Tool`. The gem emits **no warning** — this is your informed, documented choice
+(ADR-0007). There is no `register_raw` and no `unaudited:` flag; it is the same `register`.
+
+```ruby
+RailsMcp.registry.register(MyRawTool)   # runs unaudited — you own its safety
+```
+
+If you want observability on a raw tool, use the `mcp` gem's own hooks — an
+`around_request`/`exception_reporter` on your `MCP::Configuration` — rather than the gem's audit
+event.
+
+### A per-endpoint registry, or a plain `tools:` array
+
+`RailsMcp.registry` is a process-wide **convenience**, not a requirement. To serve a different
+tool set on a route, build the server from a per-endpoint `RailsMcp::Registry.new` — which serves
+only its own tools — or hand `MCP::Server` a plain `tools:` array with no registry at all
+(section 5, "A different tool set per route"):
+
+```ruby
+MCP::Server.new(name: "rails_mcp", tools: [Households::LookupTool], server_context: {user: user})
+```
+
+None of these opt-outs triggers a warning, a deprecation, or a block. The gem documents the
+seam; the app decides.
+
+---
+
 ## 6. Tenancy (only if your app is multi-tenant) — R11
 
 The gem has **no tenant concept** and does not presume you are multi-tenant. If you are,

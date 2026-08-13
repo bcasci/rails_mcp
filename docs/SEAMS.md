@@ -23,12 +23,13 @@ handshake in [`USAGE.md`](USAGE.md).
 ## The context handed to a tool
 
 The gem never resolves, invents, or nil-checks an identity — that is app code. Your
-Rack/controller layer validates the bearer token, resolves the **real staff `User`**, and
-puts it on the SDK's `server_context` when it dispatches to `MCP::Server`. The gem reads
-`user` off that context and passes it into both seams (R9).
+Rack/controller layer validates the bearer token, resolves **the identity your app decides on
+(a `User` or whatever your app uses)**, and puts it on the SDK's `server_context` when it
+dispatches to `MCP::Server`. The gem reads `user` off that context and passes it into both
+seams (R9); it takes no position on who that identity is.
 
 In the generated default, that Rack/controller layer is the app-owned `McpController`
-(ADR-0008): it authenticates each request, resolves the acting `User`, then builds a **fresh
+(ADR-0008): it authenticates each request, resolves the acting identity your app uses, then builds a **fresh
 `MCP::Server`** on public `mcp` API with that user on `server_context:` at construction — for
 that request only, never mutating a shared, process-wide server. The identity contract here
 is **unchanged** (ADR-0005): the acting user still rides `server_context` and reaches
@@ -61,7 +62,7 @@ def authorize(user:, args:, tool:)
 
 | keyword | value |
 |---------|-------|
-| `user:` | the acting staff user resolved app-side (may be `nil` if none) |
+| `user:` | the acting user resolved app-side (whatever identity your app resolves; may be `nil` if none) |
 | `args:` | the declared args hash for this call (undeclared args already dropped) |
 | `tool:` | the tool **instance** being invoked |
 
@@ -82,7 +83,7 @@ Example override:
 
 ```ruby
 def authorize(user:, args:, tool:, **)
-  raise RailsMcp::NotAuthorized, "no staff user" if user.nil?
+  raise RailsMcp::NotAuthorized, "no acting user" if user.nil?
   raise RailsMcp::NotAuthorized unless Pundit.policy!(user, tool).invoke?
 end
 ```
@@ -103,7 +104,7 @@ audit row.
 
   | key | present | value |
   |-----|---------|-------|
-  | `user:` | always | the acting staff user (the object handed in on the context) |
+  | `user:` | always | the acting user (the object handed in on the context) |
   | `tool:` | always | the tool name/class — the advertised `tool_name`, falling back to the Ruby class name |
   | `args:` | always | the declared args hash |
   | `result:` | success only | `perform`'s return value |

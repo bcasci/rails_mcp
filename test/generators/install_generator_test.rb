@@ -274,6 +274,55 @@ class InstallGeneratorTest < Rails::Generators::TestCase
     end
   end
 
+  # R3: the stamped controller frames the acting identity neutrally — it does not
+  # describe the resolved user as necessarily a "staff" user or an internal-only
+  # audience. The user: keyword itself is unchanged (asserted elsewhere).
+  def test_mcp_controller_frames_identity_neutrally
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb" do |content|
+      refute_match(/staff/i, content,
+        "controller must not frame the acting identity as a staff user")
+      refute_match(/internal[- ]?(only|staff)/i, content,
+        "controller must not frame the audience as internal-only")
+      assert_match(/acting user your app resolves|identity your app resolves/i, content,
+        "controller must frame identity as the acting user the app resolves")
+    end
+  end
+
+  # R3: the stamped ApplicationMcpTool frames the acting identity neutrally in its
+  # comments — no "staff" user framing, no "which human" phrasing.
+  def test_application_mcp_tool_frames_identity_neutrally
+    with_routes_file
+    run_generator
+    assert_file "app/mcp/application_mcp_tool.rb" do |content|
+      refute_match(/staff/i, content,
+        "base tool must not frame the acting identity as a staff user")
+      refute_match(/which human/i, content,
+        "base tool must not use the 'which human' framing")
+      assert_match(/acting user your app resolves|identity your app resolves/i, content,
+        "base tool must frame identity as the acting user the app resolves")
+    end
+  end
+
+  # R3/R6: neutralizing the identity framing does not change the frozen authorize
+  # signature or the hardening lines — the controller still skips forgery protection,
+  # passes allowed_hosts, and keeps its raising auth seam.
+  def test_neutral_framing_preserves_hardening_and_seams
+    with_routes_file
+    run_generator
+    assert_file "app/controllers/mcp_controller.rb" do |content|
+      assert_match(/^\s*skip_forgery_protection\b/, content,
+        "hardening line skip_forgery_protection must remain")
+      assert_match(/Rails\.application\.config\.hosts\.grep\(String\)/, content,
+        "hardening line allowed_hosts grep(String) must remain")
+      assert_match(/raise RailsMcp::NotAuthorized/, content,
+        "the fail-closed auth seam must remain")
+    end
+    assert_file "app/mcp/application_mcp_tool.rb",
+      /def authorize\(user:, args:, tool:\)/
+  end
+
   # R7: the stamped ApplicationMcpTool is fail-closed — it does not silently permit.
   # It must raise/deny in its stamped authorize seam rather than allow.
   def test_application_mcp_tool_is_fail_closed

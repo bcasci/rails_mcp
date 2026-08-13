@@ -1,11 +1,27 @@
 # rails_mcp — agent working notes
 
-A Ruby gem exposing selected Rails app actions to an AI client over MCP, on top of the
-official `mcp` gem. The gem ships conventions and seams only; each app owns authorization,
-audit, and (if it has it) tenancy. Work is organized as **specs** under `specs/`: each spec
-is one capability in a numbered folder (`specs/0001-…/`) holding `spec.md` (requirements +
-acceptance criteria) and `tasks.md` (the build plan). Completed specs move to
-`specs/archive/`. See also `docs/adr/` (decisions).
+A Ruby gem exposing app-defined tools to an MCP client, on top of the official `mcp` gem.
+Work is organized as **specs** under `specs/`: each spec is one capability in a numbered
+folder (`specs/0001-…/`) holding `spec.md` (requirements + acceptance criteria) and
+`tasks.md` (the build plan). Completed specs move to `specs/archive/`. See also `docs/adr/`
+(decisions).
+
+## Scope — what this gem is (and is NOT) — ADR-0012
+
+The gem registers app-defined tools, exposes them over MCP, calls `authorize` before each
+tool runs, and emits one `invoke.rails_mcp` notification per call. That is all it does. It
+imposes **no policy of its own**. These are **implementor decisions**, made in the app's
+tool/controller/app code — the gem takes no position and must ship no opinion on any:
+
+- **read vs write** (a tool's `perform` may do anything; `read_only!` is an optional advisory
+  annotation, not a gate — the gem does not enforce read-only),
+- **who may call / how they authenticate** (the app's `McpController`),
+- **permissions** (the app's `authorize`),
+- **audience** (internal operators, end-users, anything),
+- **tenancy, persistence, audit sink** (app code).
+
+Any proposed change that decides one of those *for* the app is out of scope — remove it.
+Default to removal; when a request is ambiguous about scope, ask one question before building.
 
 ## Building (the factory)
 

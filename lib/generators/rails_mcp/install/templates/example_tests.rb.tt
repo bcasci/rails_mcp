@@ -5,7 +5,7 @@ require "test_helper"
 # Example safety tests for your MCP tools — APP-OWNED, edit to fit your suite.
 # These express the two checks every exposed tool needs: it FAILS CLOSED without a
 # real authorization pass, and every call EMITS ONE audit event you can write a row
-# from. Adapt to your real staff user and authz stack.
+# from. Adapt to the identity your app resolves and your authz stack.
 class ExampleReadOnlyToolTest < ActiveSupport::TestCase
   # Fail-closed (R3/R7): with the stamped ApplicationMcpTool#authorize (which denies),
   # invoking the tool raises RailsMcp::NotAuthorized and `perform` never runs. Once you
@@ -26,7 +26,7 @@ class ExampleReadOnlyToolTest < ActiveSupport::TestCase
       events << payload
     end
 
-    acting_user = Object.new # replace with a real staff User in your app
+    acting_user = Object.new # replace with the user your app resolves
     tool = ExampleReadOnlyTool.new
     # Authorize is denied by default, so this raises — the audit event still fires
     # exactly once (recording the error). Wire a permitting authorize to see result:.
@@ -37,7 +37,7 @@ class ExampleReadOnlyToolTest < ActiveSupport::TestCase
     end
 
     assert_equal 1, events.size, "exactly one audit event per call"
-    assert_same acting_user, events.first[:user], "call attributed to the acting staff user"
+    assert_same acting_user, events.first[:user], "call attributed to the acting user"
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber)
   end

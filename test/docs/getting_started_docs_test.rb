@@ -35,16 +35,20 @@ class GettingStartedDocsTest < Minitest::Test
       "USAGE.md must seed the api_token with SecureRandom.hex(24)"
   end
 
-  # R1: USAGE defines the `staff` scope the stamped example calls (User.staff).
+  # R1: USAGE documents the optional `staff` scope as one example of
+  # restricting which users get a token (the gem takes no position — 0008 R3).
   def test_usage_defines_staff_scope
     assert_match(/scope\s+:staff/, USAGE,
-      "USAGE.md must define the `staff` scope used by User.staff.find_by")
+      "USAGE.md must document the optional `staff` scope example for restricting callers")
   end
 
   # R1: the recipe's bearer resolution matches the stamped template exactly
-  # (User.staff.find_by(api_token: token)).
+  # (User.find_by(api_token: token)). The gem takes no position on *who* may call
+  # (spec 0008 R3 / ADR-0012), so the stamped bearer resolves any user with a
+  # token; an optional `staff` scope is documented separately as one way to
+  # restrict callers, but it is not baked into the stamped resolution.
   def test_usage_bearer_resolution_matches_stamped_template
-    stamped = "User.staff.find_by(api_token: token)"
+    stamped = "User.find_by(api_token: token)"
     assert_includes CONTROLLER_TT, stamped,
       "guard: the stamped controller template must resolve via #{stamped}"
     assert_includes USAGE, stamped,

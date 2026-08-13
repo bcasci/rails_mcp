@@ -15,9 +15,9 @@ class ApplicationMcpTool < RailsMcp::Tool
   # === AUTHORIZE SEAM (required) ==========================================
   # Called before every `perform`, with the frozen contract:
   #
-  #   user:  the acting staff user (resolved app-side from the bearer token in
-  #          your Rack/controller layer, then handed to the gem — the gem never
-  #          invents an identity)
+  #   user:  the acting user your app resolves (resolved app-side from the bearer
+  #          token in your Rack/controller layer, then handed to the gem — the gem
+  #          never invents an identity)
   #   args:  the declared args for this call
   #   tool:  the tool instance being invoked
   #
@@ -26,7 +26,7 @@ class ApplicationMcpTool < RailsMcp::Tool
   # e.g. a Pundit policy:
   #
   #   def authorize(user:, args:, tool:, **)
-  #     raise RailsMcp::NotAuthorized, "no staff user" if user.nil?
+  #     raise RailsMcp::NotAuthorized, "no acting user" if user.nil?
   #     raise RailsMcp::NotAuthorized unless Pundit.policy!(user, tool).invoke?
   #   end
   def authorize(user:, args:, tool:)
@@ -41,7 +41,7 @@ class ApplicationMcpTool < RailsMcp::Tool
   #   "invoke.rails_mcp"  payload: { user:, tool:, args:, result: OR error: }
   #
   # It persists nothing. Subscribe in config/initializers/rails_mcp.rb and write
-  # your own audit row so the log answers "which human ran this" — attributed to
-  # `user`, never to a generic AI/bot identity. The payload never carries the bearer
-  # token or any credential.
+  # your own audit row so the log answers who ran this — attributed to `user`, the
+  # acting user your app resolves, never to a generic AI/bot identity. The payload
+  # never carries the bearer token or any credential.
 end

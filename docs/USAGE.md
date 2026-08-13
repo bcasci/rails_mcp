@@ -1,10 +1,11 @@
-# USAGE — installing `rails_mcp` and writing a read-only tool
+# USAGE — installing `rails_mcp` and writing a tool
 
-`rails_mcp` exposes a hand-picked allow-list of your Rails app's read-only actions to an AI
+`rails_mcp` exposes a hand-picked allow-list of your Rails app's actions to an AI
 client over MCP, on top of the official `mcp` gem. It ships the tool DSL and two seams
 (`authorize` and the `invoke.rails_mcp` audit event); **your app owns** authorization, audit
-persistence, and staff-user identity (ADR-0004). v1 is **read-only** — no
-tool may mutate (ADR-0003).
+persistence, and identity (ADR-0004). The gem is a neutral conduit (ADR-0012): a tool's
+`perform` may read or write — the app decides; the gem gates nothing. `read_only!` is an
+optional advisory annotation, not a mandate.
 
 The frozen contracts (`authorize` signature, event name/payload, context shape) are specified
 in [`SEAMS.md`](SEAMS.md). This document is the how-to.
@@ -49,19 +50,28 @@ check. That is intentional — a misconfigured install denies rather than expose
 
 The generator routes `/mcp` to an **app-owned** `McpController < ApplicationController`
 (`app/controllers/mcp_controller.rb`), not a direct transport mount. This is the app-owned
-place to authenticate the HTTP request and resolve the acting staff `User` **before any tool
-runs** (ADR-0008). The gem ships no authentication (ADR-0004); it defines *where* auth goes,
-you define *what* it is.
+place to authenticate the HTTP request and resolve the acting `User` — whatever identity your
+app resolves — **before any tool runs** (ADR-0008). The gem ships no authentication (ADR-0004);
+it defines *where* auth goes, you define *what* it is.
 
 A single `handle` action serves every MCP request verb. It authenticates the request, resolves
 the acting user, then serves it on the official `mcp` gem's **public per-request pattern**: it
 builds a **fresh `MCP::Server`** carrying `user` on `server_context`, wraps it in the stateless
 `StreamableHTTPTransport`, and renders the Rack triple that `handle_request(request)` returns.
 No gem call sits between the controller and `mcp` — the tool source and the transport are
-visible, editable lines you own:
+visible, editable lines you own.
+
+This is the hardened controller the generator stamps — edit the generated
+`app/controllers/mcp_controller.rb` in place; do not hand-copy a simplified version that drops
+the `skip_forgery_protection` and `allowed_hosts:` hardening below:
 
 ```ruby
 class McpController < ApplicationController
+  # CSRF is a browser defense; an MCP client is a machine sending a cookieless JSON
+  # POST with no CSRF token. Turn it off for this machine endpoint and rely on the
+  # authentication seam below instead.
+  skip_forgery_protection
+
   def handle
     user = authenticate_acting_user!
 
@@ -75,9 +85,15 @@ class McpController < ApplicationController
       server_context: {user: user}
     )
 
-    # Pass transport options here for your real deploy (allowed_hosts:,
-    # allowed_origins:, dns_rebinding_protection:).
-    transport = MCP::Server::Transports::StreamableHTTPTransport.new(server, stateless: true)
+    # `allowed_hosts:` widens the SDK's DNS-rebinding guard beyond loopback to YOUR
+    # app's host allow-list, so a real production Host is not rejected with
+    # `403 Forbidden: Invalid Host header`. We pass only the String entries of
+    # config.hosts. Add `allowed_origins:` / `dns_rebinding_protection:` for your deploy.
+    transport = MCP::Server::Transports::StreamableHTTPTransport.new(
+      server,
+      stateless: true,
+      allowed_hosts: Rails.application.config.hosts.grep(String)
+    )
     status, headers, body = transport.handle_request(request)
 
     # Render the Rack triple back through the controller. Customize rendering here.
@@ -93,7 +109,7 @@ class McpController < ApplicationController
   #
   #   def authenticate_acting_user!
   #     authenticate_user!   # your ApplicationController auth
-  #     current_user         # the resolved acting staff user
+  #     current_user         # the resolved acting user your app resolves
   #   end
   def authenticate_acting_user!
     raise RailsMcp::NotAuthorized, "unauthenticated until secured"
@@ -125,13 +141,13 @@ Replace the stamped raise with your real check. The signature is frozen —
 ```ruby
 class ApplicationMcpTool < RailsMcp::Tool
   def authorize(user:, args:, tool:, **)
-    raise RailsMcp::NotAuthorized, "no staff user" if user.nil?
+    raise RailsMcp::NotAuthorized, "no acting user" if user.nil?
     raise RailsMcp::NotAuthorized unless Pundit.policy!(user, tool).invoke?
   end
 end
 ```
 
-`user` is the real staff `User` your Rack/controller layer resolved from the bearer token and
+`user` is the identity your app resolved (from the bearer token or your own auth stack) and
 put on the SDK's `server_context` — the gem never invents an identity (R9). Raise to deny,
 return to permit; on a denial `perform` never runs.
 
@@ -160,8 +176,8 @@ a bearer token or credential.
 
 This is the copy-paste path from a stamped install to a real MCP tool result over HTTP. It wires
 the **static Bearer** example the generator ships commented in `mcp_controller.rb` — the
-`User.staff.find_by(api_token: token)` line — and then runs the JSON-RPC handshake with `curl`.
-Everything here is **host-app** setup (a migration, a seed, a scope, seam overrides); the gem
+`User.find_by(api_token: token)` line — and then runs the JSON-RPC handshake with `curl`.
+Everything here is **host-app** setup (a migration, a seed, seam overrides); the gem
 ships no auth or policy (ADR-0004), only the seams these steps fill.
 
 > **Client-auth reality (read first).** v1 is a **static `Authorization: Bearer` token over
@@ -189,23 +205,24 @@ class AddApiTokenToUsers < ActiveRecord::Migration[7.1]
 end
 ```
 
-### 2. Add a `staff` scope and seed a token
+### 2. Seed a token
 
-The stamped example calls `User.staff.find_by(...)`, so `User` needs a `staff` scope. Add one
-that fits your model (any boolean/role column works — this uses a `staff` flag):
+The stamped example resolves the acting user via `User.find_by(api_token: token)` — any user
+with a token can call. The gem takes no position on *who* may call; if you want to restrict it,
+add a scope that fits your app and resolve through it (an example `staff` scope):
 
 ```ruby
-# app/models/user.rb
+# app/models/user.rb — OPTIONAL: only if you want to restrict which users get a token
 class User < ApplicationRecord
   scope :staff, -> { where(staff: true) }
 end
 ```
 
-Seed a staff user with a random token and print it (you paste it into the `curl` calls below):
+Seed a user with a random token and print it (you paste it into the `curl` calls below):
 
 ```ruby
 # rails runner, a seed, or the console:
-user = User.staff.first || User.create!(email: "staff@example.com", staff: true)
+user = User.first || User.create!(email: "operator@example.com")
 user.update!(api_token: SecureRandom.hex(24))
 puts user.api_token   # copy this — it is your Bearer token
 ```
@@ -214,7 +231,7 @@ puts user.api_token   # copy this — it is your Bearer token
 
 ### 3. Wire the two fail-closed seams to permit that user
 
-Two seams are **fail-closed as stamped** — until both permit the staff user, the first call is
+Two seams are **fail-closed as stamped** — until both permit the acting user, the first call is
 denied. Wire them:
 
 **Authentication** — in `app/controllers/mcp_controller.rb`, replace the raising
@@ -223,20 +240,20 @@ denied. Wire them:
 ```ruby
 def authenticate_acting_user!
   token = request.headers["Authorization"].to_s.remove("Bearer ")
-  user = User.staff.find_by(api_token: token)
-  raise RailsMcp::NotAuthorized, "no staff user" if user.nil?
+  user = User.find_by(api_token: token)
+  raise RailsMcp::NotAuthorized, "no acting user" if user.nil?
   user
 end
 ```
 
 **Authorization** — in `app/mcp/application_mcp_tool.rb`, the stamped `authorize` **raises**
-(the gem default denies). Override it to permit the resolved staff user, or the first
+(the gem default denies). Override it to permit the resolved acting user, or the first
 `tools/call` is blocked by the fail-closed `authorize` even after authentication succeeds:
 
 ```ruby
 def authorize(user:, args:, tool:, **)
-  raise RailsMcp::NotAuthorized, "no staff user" if user.nil?
-  # permit the acting staff user (replace with your real policy, e.g. Pundit)
+  raise RailsMcp::NotAuthorized, "no acting user" if user.nil?
+  # permit the acting user your app resolved (replace with your real policy, e.g. Pundit)
 end
 ```
 
@@ -255,6 +272,12 @@ end
 Start the app (`rails s`), export your token, then run the three requests against `POST /mcp`.
 The route is `match "/mcp", to: "mcp#handle"` — every verb hits the one `handle` action.
 
+Every request sends `Accept: application/json, text/event-stream` — the transport negotiates
+its response type against that header, and a bare `Accept: application/json` can be refused. The
+handshake is ordered: send `initialize` **first**. If a bare `tools/call` returns a
+`"Server not initialized"` error, you skipped `initialize` — send the `initialize` request below
+first, then retry the call.
+
 ```console
 $ export TOKEN=<the api_token you printed above>
 ```
@@ -265,7 +288,7 @@ $ export TOKEN=<the api_token you printed above>
 $ curl -sS http://localhost:3000/mcp \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
-    -H "Accept: application/json" \
+    -H "Accept: application/json, text/event-stream" \
     -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
 ```
 
@@ -275,7 +298,7 @@ $ curl -sS http://localhost:3000/mcp \
 $ curl -sS http://localhost:3000/mcp \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
-    -H "Accept: application/json" \
+    -H "Accept: application/json, text/event-stream" \
     -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 ```
 
@@ -289,7 +312,7 @@ $ curl -sS http://localhost:3000/mcp \
 $ curl -sS http://localhost:3000/mcp \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
-    -H "Accept: application/json" \
+    -H "Accept: application/json, text/event-stream" \
     -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"example_read_only","arguments":{"subject":"first call"}}}'
 ```
 
@@ -319,11 +342,13 @@ unregistered tool is refused.
 
 ---
 
-## 4. Write a read-only tool
+## 4. Write a tool
 
 Subclass `ApplicationMcpTool` so the tool inherits your authorize + audit seams. Name it for
 the action it exposes in your domain vocabulary — a reviewer reading the class name must know
-exactly what the AI can do.
+exactly what the AI can do. The tool below is a read-only example (it calls the optional
+`read_only!` annotation); a write tool is the same shape minus `read_only!` — the gem runs
+whatever `perform` does and gates nothing.
 
 ```ruby
 # app/mcp/households/lookup_tool.rb
@@ -361,7 +386,8 @@ arg :name, :type, required: false, description: nil
 ### `perform` and results (R2)
 
 - Define behavior in `def perform(**declared_args)` — declared args arrive as keywords, and
-  the return value is the tool result. **Read only in v1** — no writes.
+  the return value is the tool result. `perform` may read or write — the gem runs it either way
+  and imposes no read/write policy (ADR-0012).
 - `text_response("ok")` builds a text content result equal to `"ok"`.
 - If `perform` raises, the error is surfaced as a tool error and the audit event records it.
 
@@ -530,6 +556,6 @@ Every exposed tool needs two safety checks (the generator stamps examples):
 
 - **Fails closed** without a real authorization pass (raises `RailsMcp::NotAuthorized`).
 - **Emits exactly one** `invoke.rails_mcp` audit event per call, attributed to the acting
-  staff user.
+  user your app resolved.
 
 See `test/mcp/example_read_only_tool_test.rb` from the generator for a working starting point.

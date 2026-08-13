@@ -6,10 +6,10 @@ module RailsMcp
   # official gem's `annotations` mechanism — the gem serializes them, we do not
   # hand-roll the hints (ADR-0001).
   #
-  # v1 is read-only (ADR-0003), so the only tier a tool declares is `read_only!`.
+  # `read_only!` is an optional, advisory tier a tool MAY declare (ADR-0012).
   # Annotations are advisory: they are hints the client MAY honor, never a
-  # server-side gate. There is no tier enforcement in v1 (SPEC R5); the machinery
-  # exists so Phase 2 mutating tiers slot in without redesign.
+  # server-side gate. There is no tier enforcement; the gem does not gate
+  # mutations — a write tool simply omits `read_only!`.
   #
   # Default is maximally dangerous: a tool that declares no tier is NOT treated
   # as read-only. That falls straight out of the official gem's Annotations

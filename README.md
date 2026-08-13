@@ -7,9 +7,12 @@ per-call `ActiveSupport::Notifications` audit event; each app owns authorization
 and identity. A safer replacement for raw `rails console`/`runner`
 access: allow-list + attribution + audit.
 
-v1 is read-only: it can register and invoke read-only diagnostic tools only. Protocol
-plumbing (JSON-RPC, the Rack transport, tool schemas, annotations) is delegated to the
-official `mcp` gem — none of it is reimplemented here.
+The gem is a neutral MCP tool-exposure conduit (ADR-0012): it registers and invokes
+whatever tools the app defines — read or write, the app decides. It imposes no read/write,
+identity, permission, audience, or persistence policy of its own; those are app decisions in
+the tool, controller, and app code. `read_only!` remains available as an optional advisory
+annotation. Protocol plumbing (JSON-RPC, the Rack transport, tool schemas, annotations) is
+delegated to the official `mcp` gem — none of it is reimplemented here.
 
 ## Installation
 
@@ -40,7 +43,8 @@ wire your app's real authentication there (Devise, a session, a bearer token —
 the default denies rather than exposes.
 
 This is a second seam alongside the tool `authorize` check: `McpController` resolves *who*
-the acting staff user is; `authorize` decides *what* that user may do. See
+the acting user is (whatever identity your app resolves); `authorize` decides *what* that
+user may do. See
 [`docs/USAGE.md`](docs/USAGE.md) for the full flow.
 
 ## Make your first call
@@ -48,8 +52,8 @@ the acting staff user is; `authorize` decides *what* that user may do. See
 From install to a proven `tools/call`. v1 auth is a **static `Authorization: Bearer` token
 over Streamable HTTP** — prove it with `curl` or an MCP inspector that sets a custom header.
 Claude's hosted remote-MCP connector expects OAuth 2.1, so a static Bearer is not guaranteed
-to connect from that surface. Full recipe (the `api_token` migration, the staff seed, the
-`staff` scope) is in [`docs/USAGE.md`](docs/USAGE.md#2a-make-your-first-call-install--a-proven-toolscall).
+to connect from that surface. Full recipe (the `api_token` migration, the user seed, the
+resolving scope) is in [`docs/USAGE.md`](docs/USAGE.md#2a-make-your-first-call-install--a-proven-toolscall).
 
 1. **Install** — add the gem (a git line until it is published) and generate:
 
@@ -65,7 +69,8 @@ to connect from that surface. Full recipe (the `api_token` migration, the staff 
 
 2. **Wire auth** — in `app/controllers/mcp_controller.rb`, replace the fail-closed
    `authenticate_acting_user!` with the stamped bearer example, and override `authorize` in
-   `app/mcp/application_mcp_tool.rb` to permit the staff user (both deny until you do):
+   `app/mcp/application_mcp_tool.rb` to permit the acting user your app resolves (both deny
+   until you do):
 
    ```ruby
    def authenticate_acting_user!
@@ -80,9 +85,10 @@ to connect from that surface. Full recipe (the `api_token` migration, the staff 
    ```bash
    curl -sS http://localhost:3000/mcp \
      -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-     -H "Accept: application/json" \
+     -H "Accept: application/json, text/event-stream" \
      -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"example_read_only","arguments":{"subject":"first call"}}}'
    # => {"result":{"content":[{"type":"text","text":"Looked up: first call"}],"isError":false}}
+   # If this returns a "not initialized" error, send an `initialize` request first (see USAGE §2a).
    ```
 
 ## Usage

@@ -5,8 +5,8 @@
 # reading the class name must know exactly what the AI can do.
 #
 # It subclasses ApplicationMcpTool, so it inherits your authorize + audit seams.
-# `read_only!` advertises readOnlyHint to the client. v1 is read-only: this tool
-# must not mutate anything.
+# `read_only!` is an optional advisory annotation: it advertises readOnlyHint to
+# the client. The gem does not gate writes — a write tool simply omits it.
 class ExampleReadOnlyTool < ApplicationMcpTool
   tool_name "example_read_only"
   description "Example read-only diagnostic tool — replace with a real one."
@@ -18,7 +18,7 @@ class ExampleReadOnlyTool < ApplicationMcpTool
   read_only!
 
   # Your behavior. Receives the declared args as keywords; return a tool result
-  # (text_response builds a text one). Read only — no writes.
+  # (text_response builds a text one). This example only reads.
   def perform(subject:)
     text_response("Looked up: #{subject}")
   end

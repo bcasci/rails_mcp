@@ -1,5 +1,7 @@
 # TASKS — de-opinion the gem surface (neutral MCP conduit)
 
+Completed Thu Aug 13 14:07:39 EDT 2026 at commit a2c4967
+
 Task breakdown for spec 0008. Each task owns a DISJOINT set of files. Docs/templates/comments
 only — no gem runtime change (R6). Builds on shipped specs 0001–0007 (archived). Governing
 decision: ADR-0012. References like `R1` point to this spec's `spec.md`.
@@ -10,7 +12,7 @@ Every task is `autonomous`. T1–T3 are independent (disjoint files), parallel; 
 
 ## Layer 0 — Strip posture + neutralize framing (parallel)
 
-### T1 — Annotations comment + example tool/tests
+### T1 — Annotations comment + example tool/tests [DONE]
 **Owns:**
 - `lib/rails_mcp/annotations.rb` (CHANGED: the comment no longer says "v1 is read-only
   (ADR-0003)"; `read_only!` stays exactly as an optional advisory annotation — code unchanged)
@@ -26,7 +28,7 @@ Every task is `autonomous`. T1–T3 are independent (disjoint files), parallel; 
 **Acceptance (R1, R2):** no read-only mandate in these files; `read_only!` still works.
 **Tag:** `autonomous`.
 
-### T2 — Docs: README, USAGE (incl §1a fix + curl note), SEAMS, conventions
+### T2 — Docs: README, USAGE (incl §1a fix + curl note), SEAMS, conventions [DONE]
 **Owns:**
 - `README.md` (CHANGED: remove read-only/staff/internal posture; the gem exposes app-defined
   tools, read or write, the app decides)
@@ -45,7 +47,7 @@ Every task is `autonomous`. T1–T3 are independent (disjoint files), parallel; 
 controller; curl note present.
 **Tag:** `autonomous`.
 
-### T3 — Templates: controller + base tool + generator desc
+### T3 — Templates: controller + base tool + generator desc [DONE]
 **Owns:**
 - `lib/generators/rails_mcp/install/templates/mcp_controller.rb.tt` (CHANGED: neutralize
   "acting staff user" → "the acting user your app resolves"; keep every hardening line
@@ -65,7 +67,7 @@ controller; curl note present.
 
 ## Layer 1 — ADR status + gate
 
-### T4 — Supersede ADR-0003; gate + posture-clean proof
+### T4 — Supersede ADR-0003; gate + posture-clean proof [DONE]
 **Owns:**
 - `docs/adr/0003-read-only-v1.md` (CHANGED: `Status:` line → "Superseded by ADR-0012
   (2026-08-13)" with a bidirectional link; body unchanged — immutable)

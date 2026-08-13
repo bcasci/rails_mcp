@@ -1,5 +1,7 @@
 # TASKS — MCP entry point on the `mcp` gem's public controller pattern
 
+Completed Thu Aug 13 10:36:37 EDT 2026 at commit 0910fcb
+
 Task breakdown for spec 0003. Same constraint: **each task owns a DISJOINT set of files**.
 Builds on shipped specs 0001/0002 (archived): `RailsMcp::Tool`, `RailsMcp::Registry`, the
 install generator + `McpController` template, and the controller integration test.
@@ -12,7 +14,7 @@ code onto the public pattern, T1 deletes the now-dead mechanism, T2 documents.
 
 ## Layer 0 — Adopt the public controller pattern
 
-### T0 — Rewrite `McpController` template + controller integration test to public `mcp` API
+### T0 — Rewrite `McpController` template + controller integration test to public `mcp` API — DONE
 **Owns:**
 - `lib/generators/rails_mcp/install/templates/mcp_controller.rb.tt` (CHANGED: `#handle` builds
   `MCP::Server.new(name:, tools: RailsMcp.registry.tools, server_context: {user: user})` +
@@ -44,7 +46,7 @@ code onto the public pattern, T1 deletes the now-dead mechanism, T2 documents.
 
 ## Layer 1 — Remove the superseded mechanism
 
-### T1 — Delete `serve` / `mount` + dependents
+### T1 — Delete `serve` / `mount` + dependents — DONE
 **Owns:**
 - `lib/rails_mcp/serve.rb` (DELETE)
 - `lib/rails_mcp/mount.rb` (DELETE — `mount_mcp`, `RailsMcp.rack_app`, `Router` mixin)
@@ -70,7 +72,7 @@ code onto the public pattern, T1 deletes the now-dead mechanism, T2 documents.
 
 ## Layer 2 — Document the customization seams
 
-### T2 — README + docs for the inline controller and its seams
+### T2 — README + docs for the inline controller and its seams — DONE
 **Owns:**
 - `README.md` (CHANGED: the install section shows the inline controller; drop any `mount_mcp`
   mention)

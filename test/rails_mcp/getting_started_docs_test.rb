@@ -8,7 +8,7 @@ require "test_helper"
 #
 # These tests assert on the shipped doc content, matching the repo's doc-content
 # test pattern (test_rails_mcp.rb reads a file and asserts on its text).
-class GettingStartedDocsTest < Minitest::Test
+class GettingStartedSeamsDocsTest < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
   SEAMS = File.read(File.join(ROOT, "docs", "SEAMS.md"))
   CHANGELOG = File.read(File.join(ROOT, "CHANGELOG.md"))

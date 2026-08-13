@@ -1,6 +1,6 @@
 ---
 name: spec-driven-dev
-description: The rails_mcp build loop — spec-driven, test-first development of a TICKETS.md ticket. Use when implementing a ticket, writing or changing a RailsMcp tool or seam, or turning a SPEC requirement into code. Guides reading the ticket's SPEC requirements, fetching the official mcp gem API, writing failing tests from the acceptance criteria, implementing to green, running the gate, and checking the definition of done. Triggers include "implement ticket", "build T3", "spec-driven", "write the tool", "add a test for".
+description: Build a rails_mcp gem ticket the spec-driven, test-first way. Use whenever writing or changing rails_mcp code — implementing a TICKETS.md ticket, adding or editing a RailsMcp tool, seam, or DSL, or turning a SPEC requirement into tests and code. Walks the loop: read the ticket and its SPEC acceptance criteria, fetch the official mcp gem API before coding, write failing tests, implement to green, run the pre-commit gate, check the definition of done. Trigger phrases include "implement T3", "build the args DSL", "work the ticket", "add a test for R4", "write the tool", "spec-driven".
 ---
 
 # Spec-driven development — the rails_mcp build loop

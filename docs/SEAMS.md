@@ -39,7 +39,7 @@ that populates it per request; it adds no `authorize`/payload keys.
 `server_context` may be either shape (`RailsMcp::Tool.call` accepts both — see
 `lib/rails_mcp/tool.rb`):
 
-- a Hash: `{ user: current_staff_user }`
+- a Hash: `{ user: current_user }` (or whatever identity your app resolves)
 - any object that responds to `#user` (including the SDK's `MCP::ServerContext`, which
   delegates `#user` to the underlying app context).
 

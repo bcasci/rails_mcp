@@ -24,7 +24,7 @@ module RailsMcp
     # raise it carries `error:` (the exception) and the exception is re-raised to
     # the caller. Returns the block's value on success.
     #
-    # @param user [Object] the acting staff user (resolved app-side; never nil-checked here)
+    # @param user [Object] the acting user resolved app-side (never nil-checked here)
     # @param tool [String, Class] the tool name/class being invoked
     # @param args [Hash] the declared args for this call
     def instrument(user:, tool:, args:)

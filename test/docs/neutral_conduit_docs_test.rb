@@ -67,6 +67,8 @@ class NeutralConduitDocsTest < Minitest::Test
         "#{name} must not frame the audience as internal staff-only")
       refute_match(/which human/i, body,
         "#{name} must not frame identity as 'which human'")
+      refute_match(/staff[_ ]user/i, body,
+        "#{name} must not name the identity a staff user (e.g. current_staff_user)")
     end
   end
 

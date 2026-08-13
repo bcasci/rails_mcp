@@ -77,7 +77,7 @@ Some ADRs are standing constraints, enforced by grep in CI (not just prose):
 
 Project-specific naming, architecture invariants, layout, and API rules are in
 [`docs/conventions.md`](docs/conventions.md) — read it before adding classes or seams.
-Baseline: minitest, standardrb, read-only v1 (ADR-0003).
+Baseline: minitest, standardrb, neutral MCP conduit (ADR-0012).
 
 Gotchas:
 

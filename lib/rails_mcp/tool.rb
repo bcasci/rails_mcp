@@ -61,7 +61,7 @@ module RailsMcp
 
       private
 
-      # Pull the acting staff user out of the app-populated context without inventing
+      # Pull the acting user out of the app-populated context without inventing
       # one. The app sets `server_context` on `MCP::Server`; the gem never resolves or
       # fabricates identity (R9). Supports a Hash context (`{user: ...}`) and any object
       # exposing `user` — including the SDK's `MCP::ServerContext`, which delegates

@@ -1,0 +1,44 @@
+# frozen_string_literal: true
+
+require "test_helper"
+
+# Example safety tests for your MCP tools — APP-OWNED, edit to fit your suite.
+# These express the two checks every exposed tool needs: it FAILS CLOSED without a
+# real authorization pass, and every call EMITS ONE audit event you can write a row
+# from. Adapt to your real staff user and authz stack.
+class ExampleReadOnlyToolTest < ActiveSupport::TestCase
+  # Fail-closed (R3/R7): with the stamped ApplicationMcpTool#authorize (which denies),
+  # invoking the tool raises RailsMcp::NotAuthorized and `perform` never runs. Once you
+  # wire a real check, change this to assert an UNAUTHORIZED user is denied.
+  test "denies the call when authorization does not pass" do
+    tool = ExampleReadOnlyTool.new
+    assert_raises(RailsMcp::NotAuthorized) do
+      tool.send(:invoke, user: nil, args: {subject: "x"})
+    end
+  end
+
+  # Audit-row-written (R4): exactly one "invoke.rails_mcp" event fires per call, so an
+  # audit subscriber can persist a row. Here we subscribe, invoke, and assert the event
+  # fired with the acting user attributed — the same seam your initializer subscribes to.
+  test "emits one audit event attributed to the acting user" do
+    events = []
+    subscriber = ActiveSupport::Notifications.subscribe("invoke.rails_mcp") do |*, payload|
+      events << payload
+    end
+
+    acting_user = Object.new # replace with a real staff User in your app
+    tool = ExampleReadOnlyTool.new
+    # Authorize is denied by default, so this raises — the audit event still fires
+    # exactly once (recording the error). Wire a permitting authorize to see result:.
+    begin
+      tool.send(:invoke, user: acting_user, args: {subject: "x"})
+    rescue RailsMcp::NotAuthorized
+      # expected until you implement authorize
+    end
+
+    assert_equal 1, events.size, "exactly one audit event per call"
+    assert_same acting_user, events.first[:user], "call attributed to the acting staff user"
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+  end
+end

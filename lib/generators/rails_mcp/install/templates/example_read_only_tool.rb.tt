@@ -1,0 +1,25 @@
+# frozen_string_literal: true
+
+# An example READ-ONLY diagnostic tool. Rename it and its file to your domain
+# (e.g. Households::LookupTool in app/mcp/households/lookup_tool.rb) — a reviewer
+# reading the class name must know exactly what the AI can do.
+#
+# It subclasses ApplicationMcpTool, so it inherits your authorize + audit seams.
+# `read_only!` advertises readOnlyHint to the client. v1 is read-only: this tool
+# must not mutate anything.
+class ExampleReadOnlyTool < ApplicationMcpTool
+  tool_name "example_read_only"
+  description "Example read-only diagnostic tool — replace with a real one."
+
+  # Declare args by their domain concept, never `:id` or `:param`. Only declared
+  # args reach `perform`; the AI cannot smuggle undeclared arguments.
+  arg :subject, :string, required: true, description: "what to look up"
+
+  read_only!
+
+  # Your behavior. Receives the declared args as keywords; return a tool result
+  # (text_response builds a text one). Read only — no writes.
+  def perform(subject:)
+    text_response("Looked up: #{subject}")
+  end
+end

@@ -1,0 +1,58 @@
+# frozen_string_literal: true
+
+# ApplicationMcpTool is your app's base MCP tool, the way ApplicationController is
+# your app's base controller. Every tool you expose to the AI subclasses this, so
+# the authorization and audit seams you wire here apply to all of them.
+#
+# This file is APP-OWNED and yours to edit. The rails_mcp gem ships no policy: it
+# defines *where* authz and audit happen; you define *what* they are, using your own
+# stack (Pundit or otherwise, your audit trail).
+#
+# As stamped it is FAIL-CLOSED: the authorize seam below raises, so nothing runs
+# until you implement your real check. That is intentional — a misconfigured install
+# denies rather than exposes.
+class ApplicationMcpTool < RailsMcp::Tool
+  # === AUTHORIZE SEAM (required) ==========================================
+  # Called before every `perform`, with the frozen contract:
+  #
+  #   user:  the acting staff user (resolved app-side from the bearer token in
+  #          your Rack/controller layer, then handed to the gem — the gem never
+  #          invents an identity)
+  #   args:  the declared args for this call
+  #   tool:  the tool instance being invoked
+  #
+  # Raise to DENY (fail closed); return to PERMIT. Keep the `**` so future context
+  # keys stay forward-compatible. Replace the raise below with your real check,
+  # e.g. a Pundit policy:
+  #
+  #   def authorize(user:, args:, tool:, **)
+  #     raise RailsMcp::NotAuthorized, "no staff user" if user.nil?
+  #     raise RailsMcp::NotAuthorized unless Pundit.policy!(user, tool).invoke?
+  #   end
+  def authorize(user:, args:, tool:)
+    raise RailsMcp::NotAuthorized,
+      "ApplicationMcpTool#authorize is not implemented — every call is denied " \
+      "until you wire your real authorization check here."
+  end
+
+  # === AUDIT SEAM (subscribe app-side) ====================================
+  # The gem publishes exactly one ActiveSupport::Notifications event per tool call:
+  #
+  #   "invoke.rails_mcp"  payload: { user:, tool:, args:, result: OR error: }
+  #
+  # It persists nothing. Subscribe in config/initializers/rails_mcp.rb and write
+  # your own audit row so the log answers "which human ran this" — attributed to
+  # `user`, never to a generic AI/bot identity. The payload never carries the bearer
+  # token or any credential.
+
+  # === TENANT SCOPING (optional — only if your app is multi-tenant) =======
+  # The gem has NO tenant concept and does not presume you are multi-tenant. If you
+  # are, scoping is ordinary app code YOU add here — never a free tool arg. Take the
+  # tenant from the authenticated context and run tool bodies inside its scope, e.g.:
+  #
+  #   def perform(**args)
+  #     current_tenant.with_shard { super }
+  #   end
+  #
+  # If your app is single-tenant, ignore this section entirely.
+end

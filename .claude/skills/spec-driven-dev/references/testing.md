@@ -24,61 +24,34 @@ Minitest, standardrb style. Tests mirror SPEC acceptance criteria.
   asserting the mock instead of the behavior.
 - Failure states are first-class, not afterthoughts.
 
-## Stubs and mocks — sparingly; they must earn their place
+## Stubs and mocks — they must earn their place
 
-Over-mocking is the top way a suite goes green over broken code: a mock that doesn't match
-reality passes while production fails. Default to REAL objects and real code paths.
+A mock that doesn't match reality passes while production breaks. Default to REAL objects.
+**Fake/real line = the gem/app ownership line:** gem internals and the `mcp` gem are always
+real; only app-owned seams the gem doesn't ship (staff user, `ApplicationMcpTool`, tenant)
+may be faked.
 
-**The fake/real line is the gem/app ownership line.** Gem internals and the official `mcp`
-gem are ALWAYS real. App-owned seams the gem doesn't ship — the staff user,
-`ApplicationMcpTool`, tenant — may be faked, and only there.
+- **Real, sociable by default.** Real tool subclasses, registry, fail-closed `authorize`, and
+  `ActiveSupport::Notifications` subscription. Build objects; don't stub their own accessors
+  (build a real `input_schema`, don't stub `#input_schema`).
+- **Assert outcomes.** Use an interaction assertion only for a side effect with no post-state:
+  the notification fired **exactly once** on success and **zero** on deny (subscribe via
+  `ActiveSupport::Notifications.subscribed(handler, "invoke.rails_mcp") { … }` — auto-unsubscribes;
+  `assert_notification` is Rails 8+, hand-roll on 7.1); and `authorize`-before-`perform` order.
+- **Never mock the unit under test or the gem's own classes.**
+- **Never stub the `mcp` gem — drive it real.** Unit (T1/T5): `MCP::Server#handle(hash, session: nil)`
+  / `#handle_json` in-process. Integration (T7): mount real `StreamableHTTPTransport` at `/mcp`.
+- **App-side fakes, only at the boundary,** each honoring the real contract
+  (`authorize(user:, args:, tool:)`): fake staff user, fake tenant (cross-tenant denial lives
+  in the dummy app, never gem code), stub `ApplicationMcpTool`.
+- **Time/RNG:** inject a seam or use `travel_to`, don't mock domain logic.
+- **Error paths:** forcing a real error (`Timeout::Error`, the `mcp` gem's error types) is
+  allowed; inventing a success shape the real method never returns is not.
+- **Every `mcp`-gem stub needs a real-transport T7 test on the same path.**
+- **Tells:** `Minitest::Mock#expect`/mocha where a real object or `Object#stub` fits; a stubbed
+  shape reality never returns; an all-mocks suite with no integration test.
 
-- **Default: real, sociable tests.** Real tool subclasses, the real registry, the real
-  fail-closed `authorize`, a real `ActiveSupport::Notifications` subscription. Build objects
-  with test builders — never stub a class's own accessor (build a real `input_schema`; don't
-  stub `#input_schema`). A solitary test with doubles is a justified exception, named as such.
-- **Assert outcomes by default; interaction assertions are a scalpel, not banned.** Prefer
-  asserting state (the returned result, the payload, the denial). Assert that something was
-  called/emitted only when there is no observable post-state:
-  - the notification is fire-and-forget — assert it fired **exactly once** with the right
-    payload on success and **not at all** on denial (`assert_equal 0, events.size`).
-    Subscribe via `ActiveSupport::Notifications.subscribed(handler, "invoke.rails_mcp") { … }`
-    so it auto-unsubscribes (a bare `subscribe` leaks across tests and double-counts). Target
-    Rails 7.1 — hand-roll this; `assert_notification`/`capture_notifications` are Rails 8.0+.
-  - command ordering — `authorize` runs before `perform`, and `perform` never runs on deny.
-- **Never mock the unit under test or the gem's own classes.** Args DSL → real tool. Invoke
-  pipeline → run it for real.
-- **The `mcp` gem is real — never stub what it returns, at any level. Two real entry points:**
-  - **Unit (T1/T5):** drive a real `MCP::Server` in-process with
-    `server.handle(request_hash, session: nil)` / `#handle_json` — real JSON-RPC, no HTTP.
-    Use for the registry/allow-list (`tools/list` returns only registered tools; an
-    unregistered `tools/call` is refused).
-  - **Integration (T7):** mount the real `StreamableHTTPTransport` Rack app at `/mcp` and make
-    real MCP calls (`Rack::Test`, or `ActionDispatch::IntegrationTest` against the dummy app).
-- **App-side fakes are allowed at the ownership boundary — and only there.** The gem ships no
-  staff user, `ApplicationMcpTool`, or tenant, so a plain fake is the correct "boundary you
-  don't own." Permitted: a **fake staff user** (object carrying the attributes `authorize`
-  and the R4 payload read), a **fake tenant** (R11 cross-tenant denial lives in the dummy
-  app's wiring, never gem code), the dummy app's **stub `ApplicationMcpTool`**. Each fake MUST
-  honor the real contract: `authorize(user:, args:, tool:)`, a `user` shaped as the payload
-  expects.
-- **Control time and randomness by injecting a clock/RNG seam** (defaulting to the real one)
-  and freezing it, or Rails' real `travel_to` — not by mocking domain logic. This makes the
-  outcome deterministic; it stays a state assertion.
-- **Error paths: forcing a real, documented failure is allowed.** Making a boundary raise its
-  real error (`Timeout::Error`, the `mcp` gem's own error types) to test fail-closed honors
-  the contract. Only inventing a *success* shape the real method never returns is forbidden.
-- **MANDATORY contract test.** Every fake/stub of a surface you don't own (the `mcp` gem
-  especially) is paired with a real-transport integration test (T7) on the same path. A
-  double without its contract test is an incomplete test, not a passing one.
-- **Tells to avoid:** `Minitest::Mock#expect`/`verify` or pulling in mocha/rr where a real
-  object, a plain fake, or `Object#stub` would do; stubbing a method to return a shape the
-  real method never produces; an all-mocks suite with no integration test; a side effect
-  verified only by downstream state, missing the "fired exactly once / not on deny" assertion.
-
-**Test-dependency precondition:** T7's real mount needs `rack-test` (and `rails` for
-`ActionDispatch::IntegrationTest`) plus the real `mcp` gem in the test group — declared in the
-gemspec dev deps. Without them these rules are aspirational.
+**Deps:** T7 needs `rack-test` + `rails` + the real `mcp` gem in the test group (T0 declares them).
 
 ## Mandatory security/fail-closed tests where relevant
 

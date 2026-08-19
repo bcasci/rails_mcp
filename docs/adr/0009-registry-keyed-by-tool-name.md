@@ -1,6 +1,6 @@
 # ADR-0009 — Registry keyed by tool name, reload-safe, collision-detecting
 
-Status: Accepted (2026-08-13)
+Status: Superseded by [ADR-0013](0013-drop-registry-for-app-owned-tool-list.md) (2026-08-19)
 
 ## Context
 

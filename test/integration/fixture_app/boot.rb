@@ -13,8 +13,10 @@
 #     `protect_from_forgery with: :exception` — so CSRF is genuinely on (R2 CSRF),
 #   * a booted `Rails.application` whose `config.hosts` carries a non-loopback production
 #     Host — so the SDK DNS-rebinding guard is genuinely exercised (R2 Host),
-#   * a reload stand-in (a redefined tool class) driven through the app-owned
-#     `RegisteredTools.all` list, re-resolved per request (R1 / spec 0009 R4).
+#   * the app-owned `RegisteredTools` allow-list loaded VERBATIM from
+#     `registered_tools.rb.tt` — its `.all` returns `[ExampleReadOnlyTool]`, the same
+#     fixed literal a fresh install stamps — so a real end-to-end tools/list + tools/call
+#     runs through the stamped artifact, not a stubbed stand-in (spec 0009 R7).
 #
 # The app WIRES the two fail-closed seams by SUBCLASSING the verbatim base classes
 # (`TestMcpController < McpController`, tools `< ApplicationMcpTool`) and overriding the
@@ -34,6 +36,7 @@ module FixtureApp
 
   MCP_CONTROLLER_TEMPLATE = File.join(TEMPLATES, "mcp_controller.rb.tt")
   APPLICATION_MCP_TOOL_TEMPLATE = File.join(TEMPLATES, "application_mcp_tool.rb.tt")
+  REGISTERED_TOOLS_TEMPLATE = File.join(TEMPLATES, "registered_tools.rb.tt")
 
   # A production, non-loopback Host the fixture serves under, added to config.hosts so the
   # DNS-rebinding guard admits it (R2 Host). Loopback would pass trivially and prove nothing.
@@ -54,6 +57,7 @@ module FixtureApp
       boot_rails!
       define_app_infrastructure!
       load_verbatim_templates!
+      define_app_owned_tools!
 
       @loaded = true
     end
@@ -95,39 +99,54 @@ module FixtureApp
       klass.initialize!
     end
 
-    # The app-side infrastructure the stamped templates lean on: a real
-    # ApplicationController with CSRF genuinely on, and the app-owned `RegisteredTools`
-    # allow-list the verbatim `mcp_controller.rb.tt` passes to `MCP::Server`.
+    # The base app infrastructure the verbatim templates lean on: a real
+    # ApplicationController with CSRF genuinely on. Runs BEFORE the templates load, since
+    # the stamped `McpController` subclasses `ApplicationController` at definition time.
     def define_app_infrastructure!
       unless defined?(::ApplicationController)
         Object.const_set(:ApplicationController, Class.new(ActionController::Base) do
           protect_from_forgery with: :exception
         end)
       end
-
-      define_registered_tools! unless defined?(::RegisteredTools)
     end
 
-    # The app-owned allow-list (spec 0009). The stamped `registered_tools.rb.tt` returns a
-    # fixed array literal; the fixture makes `.all` test-settable so each test can list the
-    # tools it exercises (the same "an ordinary array of tool classes, resolved per
-    # request" model). Tests set `RegisteredTools.list = [...]`; `.all` returns it fresh
-    # each request, so a redefined class (the reload stand-in) is named fresh — reload-safe
-    # by construction, with no registry keying or collision code (spec 0009 R4).
-    def define_registered_tools!
-      Object.const_set(:RegisteredTools, Module.new do
-        class << self
-          attr_writer :list
+    # The app-owned tools the verbatim templates reference. Runs AFTER the templates load,
+    # because `ExampleReadOnlyTool` subclasses the verbatim `ApplicationMcpTool` and the
+    # stamped `RegisteredTools.all` array literal names `ExampleReadOnlyTool`.
+    def define_app_owned_tools!
+      define_example_read_only_tool! unless defined?(::ExampleReadOnlyTool)
+      load_registered_tools_verbatim! unless defined?(::RegisteredTools)
+    end
 
-          def list
-            @list ||= []
-          end
+    # The seeded example tool `registered_tools.rb.tt` names in its stamped array. It
+    # subclasses the verbatim `ApplicationMcpTool` (inheriting its seams) and WIRES the
+    # fail-closed authorize seam by overriding it — the same "subclass to wire seams"
+    # pattern the fixture uses for the controller. read-only, no required args, so a real
+    # cookieless tools/call through the stamped list succeeds end to end (spec 0009 R7).
+    def define_example_read_only_tool!
+      Object.const_set(:ExampleReadOnlyTool, Class.new(ApplicationMcpTool) do
+        tool_name "example_read_only"
+        description "Example read-only diagnostic tool (fixture)."
+        read_only!
 
-          def all
-            list
-          end
+        def authorize(user:, args:, tool:)
+          raise RailsMcp::NotAuthorized, "no acting user" if user.nil?
+        end
+
+        def perform(**)
+          text_response("Looked up: example")
         end
       end)
+    end
+
+    # Load the stamped `registered_tools.rb.tt` VERBATIM as the app-owned `RegisteredTools`
+    # allow-list (spec 0009 R7). The template carries no ERB, so the file IS the rendered
+    # output; a guard test asserts the loaded source is byte-identical. Its `.all` returns
+    # the fixed `[ExampleReadOnlyTool]` literal, resolved fresh per request by the verbatim
+    # controller — the exact model a fresh install ships, no stubbed `.list` stand-in.
+    def load_registered_tools_verbatim!
+      source = template_source(REGISTERED_TOOLS_TEMPLATE)
+      eval(source, TOPLEVEL_BINDING, REGISTERED_TOOLS_TEMPLATE) # standard:disable Security/Eval
     end
 
     # Load the rendered templates verbatim as the top-level McpController and

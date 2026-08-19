@@ -1,5 +1,8 @@
 # TASKS — drop `RailsMcp::Registry` for an app-owned tool list
 
+**Completed 2026-08-19 (verified independently after the build's Verify loop stalled; R1–R7 confirmed against the code).**
+
+
 Task breakdown for spec 0009. Each task owns a DISJOINT set of files. Builds on shipped specs
 0001–0008 (archived). References like `R1` point to this spec's `spec.md`. Governing decision:
 ADR-0013.

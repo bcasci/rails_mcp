@@ -25,8 +25,10 @@ duplicate.
   in the app-owned `ApplicationMcpTool`. (ADR-0004)
 - **Two seams only** — `authorize` and the notification event. Adding a third seam needs an
   ADR.
-- **Allow-list only.** The sole callable surface is registered `RailsMcp::Tool` subclasses.
-  No generic executor, no console tool, no `eval`, no `rails runner` path. (ADR-0004, R10)
+- **Allow-list only.** The sole callable surface is the `RailsMcp::Tool` subclasses the app
+  lists in `RegisteredTools.all` and hands `MCP::Server.new(tools:)`. No generic executor, no
+  console tool, no `eval`, no `rails runner` path. The allow-list guarantee is the `mcp`
+  gem's — the array passed to `tools:` is the allow-list. (ADR-0004, ADR-0013, R10)
 - **Delegate the protocol** to the official `mcp` gem. No hand-rolled JSON-RPC or transport.
   (ADR-0001)
 - **Defaults fail closed.** An unconfigured `authorize` denies rather than allows. (R3)

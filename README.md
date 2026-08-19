@@ -7,8 +7,8 @@ per-call `ActiveSupport::Notifications` audit event; each app owns authorization
 and identity. A safer replacement for raw `rails console`/`runner`
 access: allow-list + attribution + audit.
 
-The gem is a neutral MCP tool-exposure conduit (ADR-0012): it registers and invokes
-whatever tools the app defines — read or write, the app decides. It imposes no read/write,
+The gem is a neutral MCP tool-exposure conduit (ADR-0012): it invokes whatever tools the app
+lists (in its app-owned `RegisteredTools`) — read or write, the app decides. It imposes no read/write,
 identity, permission, audience, or persistence policy of its own; those are app decisions in
 the tool, controller, and app code. `read_only!` remains available as an optional advisory
 annotation. Protocol plumbing (JSON-RPC, the Rack transport, tool schemas, annotations) is
@@ -31,7 +31,8 @@ rails g rails_mcp:install
 
 This stamps, all app-owned and editable: a fail-closed `ApplicationMcpTool`, a
 fail-closed `McpController` in front of the `/mcp` endpoint, the `/mcp` route to that
-controller, an initializer, one read-only example tool, and example tests.
+controller, an initializer, `app/mcp/registered_tools.rb` (the app-owned list of tools the
+AI may call), one read-only example tool, and example tests.
 
 ### Secure the `/mcp` endpoint (required)
 
@@ -79,8 +80,9 @@ resolving scope) is in [`docs/USAGE.md`](docs/USAGE.md#2a-make-your-first-call-i
    end
    ```
 
-3. **Call it** — register `ExampleReadOnlyTool`, then run the handshake against `POST /mcp`
-   (`mcp#handle`) and finish with a `tools/call`:
+3. **Call it** — the generator seeds `ExampleReadOnlyTool` in `RegisteredTools.all`
+   (`app/mcp/registered_tools.rb`), so it is already on the allow-list. Run the handshake
+   against `POST /mcp` (`mcp#handle`) and finish with a `tools/call`:
 
    ```bash
    curl -sS http://localhost:3000/mcp \
@@ -94,8 +96,8 @@ resolving scope) is in [`docs/USAGE.md`](docs/USAGE.md#2a-make-your-first-call-i
 ## Usage
 
 - [`docs/USAGE.md`](docs/USAGE.md) — install, wire the two seams, the args DSL, writing a
-  read-only tool, registering the allow-list, the app-owned controller and its customization
-  seams, and testing.
+  read-only tool, the app-owned `RegisteredTools` list (the allow-list), the app-owned
+  controller and its customization seams, and testing.
 - [`docs/SEAMS.md`](docs/SEAMS.md) — the frozen contracts: `authorize` (fail-closed) and the
   `invoke.rails_mcp` audit payload.
 

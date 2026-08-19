@@ -148,12 +148,12 @@ identity (R9).
 The two seams above are what a **`RailsMcp::Tool`** gets: `authorize` before `perform`, then the
 one `invoke.rails_mcp` event. That pipeline is an opinionated default, and every convenience
 peels back to a raw `mcp` primitive when an app needs to get specific — the DSL yields to a raw
-`input_schema`/`annotations`, `expose!` co-locates registration, and a per-endpoint registry or a
-plain `tools:` array replaces `RailsMcp.registry`. Opting out is **document-only**: no warning, no
-block (the how-to is [`USAGE.md` §5a](USAGE.md)).
+`input_schema`/`annotations`, and a per-route tool set is just a different array handed to
+`MCP::Server.new(tools:)` (the app-owned `RegisteredTools.all` is the default). Opting out is
+**document-only**: no warning, no block (the how-to is [`USAGE.md` §5a](USAGE.md)).
 
-The furthest opt-out is a **raw `MCP::Tool`** (not a `RailsMcp::Tool`) registered via the ordinary
-`register`. It **sits outside this pipeline by design**: it runs and is listable, but it gets
-**no `authorize` and no `invoke.rails_mcp` event** — those seams live on `RailsMcp::Tool`, and the
-gem does not audit tools it does not own. That is the app's informed, documented choice; the gem
-neither warns nor blocks (ADR-0004, ADR-0007).
+The furthest opt-out is a **raw `MCP::Tool`** (not a `RailsMcp::Tool`) listed in
+`RegisteredTools.all`. It **sits outside this pipeline by design**: it runs and is listable, but
+it gets **no `authorize` and no `invoke.rails_mcp` event** — those seams live on
+`RailsMcp::Tool`, and the gem does not audit tools it does not own. That is the app's informed,
+documented choice; the gem neither warns nor blocks (ADR-0004, ADR-0007).

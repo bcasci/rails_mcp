@@ -73,7 +73,7 @@ class ControllerEndToEndTest < Minitest::Test
       # The public per-request pattern: a fresh MCP::Server per request carries THIS
       # request's user on server_context, so no shared server is mutated. allowed_hosts
       # admits rack-test's example.org host through the SDK's DNS-rebinding guard.
-      server = MCP::Server.new(name: "rails_mcp", tools: REGISTRY.tools, server_context: {user: user})
+      server = MCP::Server.new(name: "rails_mcp", tools: RegisteredTools.all, server_context: {user: user})
       transport = MCP::Server::Transports::StreamableHTTPTransport.new(
         server, stateless: true, allowed_hosts: ["example.org"]
       )
@@ -96,9 +96,16 @@ class ControllerEndToEndTest < Minitest::Test
     end
   end
 
-  # The allow-list: only EchoUserTool is registered, so only it is callable (parity with
-  # the direct mount). No console/arbitrary-Ruby tool exists in the surface.
-  REGISTRY = RailsMcp::Registry.new.tap { |r| r.register(EchoUserTool) }
+  # The allow-list: the app-owned RegisteredTools list (spec 0009) — an ordinary module
+  # whose `.all` returns the explicit array of tool classes the endpoint may serve. Only
+  # EchoUserTool is listed, so only it is callable (parity with the direct mount). No
+  # console/arbitrary-Ruby tool exists in the surface. `.all` is resolved per request by
+  # the controller, mirroring the stamped `registered_tools.rb.tt`.
+  module RegisteredTools
+    def self.all
+      [EchoUserTool]
+    end
+  end
 
   # A minimal Rails routing app: `/mcp` -> `mcp#handle` for the MCP verbs, mirroring the
   # stamped routes_mount.rb.tt. rack-test drives this, so requests genuinely pass through

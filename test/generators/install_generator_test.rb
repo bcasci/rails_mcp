@@ -6,10 +6,14 @@ require "rails/generators/test_case"
 require "generators/rails_mcp/install/install_generator"
 
 # T6 / R7, R8, R9, R11 — the `rails g rails_mcp:install` generator stamps the
-# app-owned, fail-closed seams: an `ApplicationMcpTool`, an initializer, the `/mcp`
-# route line, one read-only example tool, and example tests. These run the real
-# generator into a tmp destination and assert on the stamped files, per conventions
-# (real objects, one behavior per test).
+# app-owned, fail-closed seams: an `ApplicationMcpTool`, the `RegisteredTools`
+# allow-list, an initializer, the `/mcp` route line, one read-only example tool, and
+# example tests. These run the real generator into a tmp destination and assert on the
+# stamped files, per conventions (real objects, one behavior per test).
+#
+# Spec 0009 (R2, R3): the allow-list is the app-owned `RegisteredTools.all` array;
+# the controller passes `tools: RegisteredTools.all`; the initializer no longer
+# registers tools (RailsMcp::Registry / expose! removed).
 class InstallGeneratorTest < Rails::Generators::TestCase
   tests RailsMcp::Generators::InstallGenerator
   destination File.expand_path("../../tmp/generator", __dir__)
@@ -35,17 +39,66 @@ class InstallGeneratorTest < Rails::Generators::TestCase
     assert_file "config/initializers/rails_mcp.rb"
   end
 
-  # spec 0004 R3: the generated default registers centrally in the initializer;
-  # `expose!` is an alternative, not the generated default. Guards against a future
-  # change that quietly makes co-located `expose!` the stamped default.
-  def test_default_registration_is_central_not_expose
+  # spec 0009 R2: the allow-list is stamped as the app-owned RegisteredTools list, not
+  # in the initializer. The initializer no longer registers tools, and the example tool
+  # is not registered via a removed `expose!` macro.
+  def test_registration_is_app_owned_registered_tools_not_initializer_or_expose
     with_routes_file
     run_generator
-    assert_file "config/initializers/rails_mcp.rb", /RailsMcp\.registry\.register\(/
+    assert_file "config/initializers/rails_mcp.rb" do |content|
+      refute_match(/RailsMcp\.registry/, content,
+        "the initializer must not register tools — the allow-list is RegisteredTools")
+      refute_match(/\.register\(/, content,
+        "the initializer must not call register — RailsMcp::Registry is removed")
+    end
     assert_file "app/mcp/example_read_only_tool.rb" do |content|
       refute_match(/expose!/, content,
-        "the generated example tool must register centrally, not via expose!")
+        "the generated example tool must not use the removed expose! macro")
     end
+  end
+
+  # spec 0009 R2: the generator stamps an app-owned RegisteredTools module whose `.all`
+  # returns an explicit array of tool classes seeded with ExampleReadOnlyTool.
+  def test_creates_registered_tools_list
+    with_routes_file
+    run_generator
+    assert_file "app/mcp/registered_tools.rb" do |content|
+      assert_match(/module RegisteredTools/, content,
+        "must stamp an app-owned RegisteredTools module")
+      assert_match(/def self\.all/, content,
+        "RegisteredTools must expose `.all`")
+      assert_match(/ExampleReadOnlyTool/, content,
+        "the stamped list must be seeded with ExampleReadOnlyTool")
+    end
+  end
+
+  # spec 0009 R2: RegisteredTools.all returns an array literal of tool classes (the
+  # explicit, editable allow-list), not a registry lookup.
+  def test_registered_tools_all_returns_array_of_classes
+    with_routes_file
+    run_generator
+    assert_file "app/mcp/registered_tools.rb" do |content|
+      assert_match(/\[\s*\n\s*ExampleReadOnlyTool\s*\n\s*\]/m, content,
+        "RegisteredTools.all must return an explicit array of tool classes")
+      refute_match(/RailsMcp\.registry/, content,
+        "RegisteredTools must not delegate to the removed registry")
+    end
+  end
+
+  # spec 0009 R2/R3: the stamped RegisteredTools is commented as the one place listing
+  # what the AI may call, guiding the app to add a class to expose a tool.
+  def test_registered_tools_documents_allow_list_role
+    with_routes_file
+    run_generator
+    assert_file "app/mcp/registered_tools.rb", /allow-list|what the AI may call/i
+  end
+
+  # spec 0009 R2: the initializer keeps its audit-subscribe half unchanged.
+  def test_initializer_keeps_audit_subscribe
+    with_routes_file
+    run_generator
+    assert_file "config/initializers/rails_mcp.rb",
+      /ActiveSupport::Notifications\.subscribe\("invoke\.rails_mcp"\)/
   end
 
   # R8: the generator creates one read-only example tool.
@@ -118,15 +171,17 @@ class InstallGeneratorTest < Rails::Generators::TestCase
     end
   end
 
-  # R1: the controller builds the server on the `mcp` gem's public per-request
-  # pattern — a fresh MCP::Server from the registry's tools.
+  # R1 / spec 0009 R2: the controller builds the server on the `mcp` gem's public
+  # per-request pattern — a fresh MCP::Server from the app-owned RegisteredTools.all.
   def test_mcp_controller_builds_server_on_public_mcp_api
     with_routes_file
     run_generator
     assert_file "app/controllers/mcp_controller.rb" do |content|
       assert_match(/MCP::Server\.new/, content, "controller must build a fresh MCP::Server")
-      assert_match(/RailsMcp\.registry\.tools/, content,
-        "the server's tool set must be RailsMcp.registry.tools (the allow-list)")
+      assert_match(/tools:\s*RegisteredTools\.all/, content,
+        "the server's tool set must be RegisteredTools.all (the app-owned allow-list)")
+      refute_match(/RailsMcp\.registry/, content,
+        "the controller must not reference the removed RailsMcp.registry")
     end
   end
 

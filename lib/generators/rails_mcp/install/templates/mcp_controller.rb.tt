@@ -43,13 +43,13 @@ class McpController < ApplicationController
 
     # Build a FRESH MCP::Server for THIS request, carrying `user` on server_context
     # so per-request identity is never mutated on a shared, process-wide server
-    # (per-request isolation). `RailsMcp.registry.tools` is the allow-list — the exact
-    # set of tools this endpoint lists and can call. Both lines are yours to edit:
-    # swap in a custom registry or a plain `tools:` array to serve a different tool set
+    # (per-request isolation). `RegisteredTools.all` is the allow-list — the exact set
+    # of tools this endpoint lists and can call, resolved fresh per request (reload-safe).
+    # Both lines are yours to edit: swap in your own list to serve a different tool set
     # on this route.
     server = MCP::Server.new(
       name: "rails_mcp",
-      tools: RailsMcp.registry.tools,
+      tools: RegisteredTools.all,
       server_context: {user: user}
     )
 

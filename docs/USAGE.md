@@ -35,7 +35,8 @@ It stamps, all **app-owned and editable**:
 | `app/mcp/application_mcp_tool.rb` | your base tool (like `ApplicationController`); **fail-closed** authorize seam + audit note |
 | `app/mcp/example_read_only_tool.rb` | one read-only example tool to copy |
 | `app/controllers/mcp_controller.rb` | the HTTP entry point in front of `/mcp`; **fail-closed** authentication seam (ADR-0008) |
-| `config/initializers/rails_mcp.rb` | registers tools (the allow-list) and points at the audit subscribe seam |
+| `app/mcp/registered_tools.rb` | the app-owned `RegisteredTools` list — `.all` returns the array of tool classes the AI may call (the allow-list) |
+| `config/initializers/rails_mcp.rb` | points at the audit subscribe seam (the tool list lives in `RegisteredTools`, not here) |
 | `test/mcp/example_read_only_tool_test.rb` | example safety tests: authz denial + one audit event |
 | `config/routes.rb` | gains the `/mcp` route to `McpController#handle` |
 
@@ -76,12 +77,13 @@ class McpController < ApplicationController
     user = authenticate_acting_user!
 
     # A FRESH server per request, carrying `user` on server_context — never a
-    # shared, process-wide server mutated per request. `RailsMcp.registry.tools`
-    # is the allow-list; swap it for a custom registry or a plain `tools:` array
-    # to serve a different tool set on this route.
+    # shared, process-wide server mutated per request. `RegisteredTools.all` is
+    # the app-owned allow-list (app/mcp/registered_tools.rb); resolved here per
+    # request so it always names the current, reloaded tool classes. Swap it for
+    # another array to serve a different tool set on this route.
     server = MCP::Server.new(
       name: "rails_mcp",
-      tools: RailsMcp.registry.tools,
+      tools: RegisteredTools.all,
       server_context: {user: user}
     )
 
@@ -257,13 +259,19 @@ def authorize(user:, args:, tool:, **)
 end
 ```
 
-Register the shipped example tool so it is on the allow-list (the generator's initializer is the
-place; here it is `ExampleReadOnlyTool`):
+The shipped example tool is already on the allow-list: the generator seeds `ExampleReadOnlyTool`
+in `RegisteredTools.all` (`app/mcp/registered_tools.rb`), the app-owned list the controller hands
+`MCP::Server.new(tools:)`. Nothing to do here for the example — you add your own tools by adding
+their classes to that array:
 
 ```ruby
-# config/initializers/rails_mcp.rb
-Rails.application.config.to_prepare do
-  RailsMcp.registry.register(ExampleReadOnlyTool)
+# app/mcp/registered_tools.rb
+module RegisteredTools
+  def self.all
+    [
+      ExampleReadOnlyTool
+    ]
+  end
 end
 ```
 
@@ -326,19 +334,29 @@ with a real tool for your domain (section 4).
 
 ---
 
-## 3. Register tools (the allow-list)
+## 3. List your tools (the allow-list)
 
-The AI can list and call **only** registered tools — there is no generic executor, no console
-tool, no arbitrary-Ruby path (R10). Register each tool you expose in the initializer:
+The AI can list and call **only** the tools in `RegisteredTools.all` — there is no generic
+executor, no console tool, no arbitrary-Ruby path (R10). `app/mcp/registered_tools.rb` is
+app-owned and editable; it is the **one place** naming what the AI may call. Add a tool by
+adding its class to the array:
 
 ```ruby
-Rails.application.config.to_prepare do
-  RailsMcp.registry.register(Households::LookupTool)
+# app/mcp/registered_tools.rb
+module RegisteredTools
+  def self.all
+    [
+      ExampleReadOnlyTool,
+      Households::LookupTool
+    ]
+  end
 end
 ```
 
-A fresh registry is empty; nothing is callable until you register it. `tools/call` on an
-unregistered tool is refused.
+The controller hands `RegisteredTools.all` to `MCP::Server.new(tools:)` per request, so the
+array **is** the allow-list — that guarantee is the `mcp` gem's: it stores only the tools it is
+given and refuses any `tools/call` for a name not in the set. A tool you never add to the list
+is never callable; nothing is exposed until you list it.
 
 ---
 
@@ -410,23 +428,22 @@ common customizations:
 
 ### A different tool set per route
 
-`RailsMcp.registry.tools` is the default allow-list. To serve a different set on a given route,
-build the `MCP::Server` from a **custom `RailsMcp::Registry`** or a plain **`tools:` array**:
+`RegisteredTools.all` is the default allow-list. To serve a different set on a given route,
+hand `MCP::Server` a **different array** — a second `RegisteredTools`-style method, or a plain
+inline `tools:` array:
 
 ```ruby
-# A custom registry (e.g. a read-only subset for a public route):
-PUBLIC_REGISTRY = RailsMcp::Registry.new
-PUBLIC_REGISTRY.register(Households::LookupTool)
-
+# A read-only subset for a public route — just a different array:
 server = MCP::Server.new(
   name: "rails_mcp",
-  tools: PUBLIC_REGISTRY.tools,          # or: [Households::LookupTool]
+  tools: [Households::LookupTool],       # or RegisteredTools.public_subset
   server_context: {user: user}
 )
 ```
 
-Route two paths to two controllers (or two actions), each building its own server, to expose
-different tool sets on different endpoints.
+Route two paths to two controllers (or two actions), each building its own server from its own
+list, to expose different tool sets on different endpoints. The tool list is ordinary app
+code — there is no gem registry to configure.
 
 ### Transport options
 
@@ -502,44 +519,32 @@ class Reports::ExportTool < ApplicationMcpTool
 end
 ```
 
-### `expose!` — co-locate registration in the tool
-
-Instead of listing a tool in the initializer, call `expose!` in its own class body. It registers
-the tool on `RailsMcp.registry` — explicit and idempotent (safe across reloads), and still no
-auto-discovery: a subclass you never `register` or `expose!` is never exposed.
-
-```ruby
-class Households::LookupTool < ApplicationMcpTool
-  tool_name "households_lookup"
-  expose!   # on the allow-list with no initializer entry
-end
-```
-
-The install generator's default stays **central** registration in the initializer (section 3);
-`expose!` is an alternative, not the new default.
-
 ### A raw `MCP::Tool` — outside the gem pipeline (unaudited, your choice)
 
-Register a plain `MCP::Tool` (not a `RailsMcp::Tool`) through the ordinary `register` and it is
-listable and callable like any other tool — but it runs **outside the gem's pipeline**: it gets
-**no `authorize` seam and no `invoke.rails_mcp` audit event**, because those belong to
+List a plain `MCP::Tool` (not a `RailsMcp::Tool`) in `RegisteredTools.all` and it is listable
+and callable like any other tool — but it runs **outside the gem's pipeline**: it gets **no
+`authorize` seam and no `invoke.rails_mcp` audit event**, because those belong to
 `RailsMcp::Tool`. The gem emits **no warning** — this is your informed, documented choice
-(ADR-0007). There is no `register_raw` and no `unaudited:` flag; it is the same `register`.
+(ADR-0007). The list is a plain array, so nothing distinguishes it from any other entry — you
+own its safety.
 
 ```ruby
-RailsMcp.registry.register(MyRawTool)   # runs unaudited — you own its safety
+module RegisteredTools
+  def self.all
+    [ExampleReadOnlyTool, MyRawTool]   # MyRawTool runs unaudited — you own its safety
+  end
+end
 ```
 
 If you want observability on a raw tool, use the `mcp` gem's own hooks — an
 `around_request`/`exception_reporter` on your `MCP::Configuration` — rather than the gem's audit
 event.
 
-### A per-endpoint registry, or a plain `tools:` array
+### A plain `tools:` array per endpoint
 
-`RailsMcp.registry` is a process-wide **convenience**, not a requirement. To serve a different
-tool set on a route, build the server from a per-endpoint `RailsMcp::Registry.new` — which serves
-only its own tools — or hand `MCP::Server` a plain `tools:` array with no registry at all
-(section 5, "A different tool set per route"):
+The tool list is ordinary app code — there is no gem registry. To serve a different tool set on
+a route, hand `MCP::Server` a different array: a second `RegisteredTools`-style method or a plain
+inline `tools:` array (section 5, "A different tool set per route"):
 
 ```ruby
 MCP::Server.new(name: "rails_mcp", tools: [Households::LookupTool], server_context: {user: user})

@@ -1,0 +1,21 @@
+# frozen_string_literal: true
+
+# RegisteredTools — APP-OWNED, yours to edit.
+#
+# This is the ONE place that lists what the AI may call: the allow-list. McpController
+# passes `RegisteredTools.all` to `MCP::Server` on every request, and the `mcp` gem
+# lists and calls only the classes in that array — there is no generic executor and no
+# console tool.
+#
+# To expose a tool, add its class to the array below. To stop exposing one, remove it.
+# That is the whole registration model: an ordinary Ruby array of tool classes.
+#
+# `.all` is called per request so the classes are named fresh each time — safe across
+# a Zeitwerk dev reload (no cached, stale class objects).
+module RegisteredTools
+  def self.all
+    [
+      ExampleReadOnlyTool
+    ]
+  end
+end

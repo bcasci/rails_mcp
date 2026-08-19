@@ -6,15 +6,16 @@ module RailsMcp
   module Generators
     # `rails g rails_mcp:install` (SPEC R8, Devise-style). Scaffolds everything an app
     # needs to start: the app-owned, fail-closed `ApplicationMcpTool` (R7), one
-    # read-only example tool, an initializer, a fail-closed `McpController` in front
-    # of the `/mcp` endpoint (spec 0002 R2), the route to that controller (R3), and
-    # example tests (authz denial + audit-row-written).
+    # read-only example tool, the app-owned `RegisteredTools` allow-list, an
+    # initializer, a fail-closed `McpController` in front of the `/mcp` endpoint
+    # (spec 0002 R2), the route to that controller (R3), and example tests (authz
+    # denial + audit-row-written).
     #
     # Everything this stamps is app-owned and editable — the gem ships no policy or
     # authentication (ADR-0004). The templates reference the gem's public API
-    # (`RailsMcp::Tool`, `RailsMcp.registry`) and the official `mcp` gem's public
-    # controller pattern (`MCP::Server` + `StreamableHTTPTransport#handle_request`),
-    # but the seams' bodies are the app's to fill in.
+    # (`RailsMcp::Tool`) and the official `mcp` gem's public controller pattern
+    # (`MCP::Server` + `StreamableHTTPTransport#handle_request`), but the seams'
+    # bodies and the tool list are the app's to fill in.
     class InstallGenerator < Rails::Generators::Base
       source_root File.expand_path("templates", __dir__)
 
@@ -33,8 +34,15 @@ module RailsMcp
         template "example_read_only_tool.rb.tt", "app/mcp/example_read_only_tool.rb"
       end
 
-      # The initializer at the DECIDED path (R8): registers the example tool on the
-      # process-wide registry (the allow-list) and points at the audit subscribe seam.
+      # The app-owned allow-list (R2): a RegisteredTools module whose `.all` returns
+      # the explicit array of tool classes the AI may call, seeded with the example
+      # tool. McpController passes RegisteredTools.all to MCP::Server per request.
+      def create_registered_tools
+        template "registered_tools.rb.tt", "app/mcp/registered_tools.rb"
+      end
+
+      # The initializer at the DECIDED path (R8): subscribes to the audit event. It no
+      # longer registers tools — the allow-list lives in app/mcp/registered_tools.rb.
       def create_initializer
         template "initializer.rb.tt", "config/initializers/rails_mcp.rb"
       end

@@ -14,7 +14,11 @@ non-obvious Rails-generator knowledge the T6 agent needs; general Ruby is assume
 
 - `app/mcp/application_mcp_tool.rb` — from `application_mcp_tool.rb.tt`: fail-closed, with
   clearly commented `authorize` and audit seams.
-- `config/initializers/rails_mcp.rb` — from `initializer.rb.tt`.
+- `app/mcp/registered_tools.rb` — from `registered_tools.rb.tt`: the app-owned
+  `RegisteredTools` module whose `.all` returns an explicit array of tool classes (the
+  allow-list the controller hands `MCP::Server.new(tools:)`), seeded with the example tool.
+- `config/initializers/rails_mcp.rb` — from `initializer.rb.tt`: the audit-subscribe seam
+  (it no longer registers tools; the app-owned `RegisteredTools.all` is the tool list).
 - one read-only example tool — from `example_read_only_tool.rb.tt`.
 - example tests (authz denial, audit-row-written) — from `example_tests.rb.tt`.
 - the `/mcp` route line — injected into `config/routes.rb`.

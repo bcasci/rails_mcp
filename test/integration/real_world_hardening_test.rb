@@ -67,7 +67,7 @@ class RealWorldHardeningTest < Minitest::Test
     @subscriber = ActiveSupport::Notifications.subscribe(RailsMcp::Instrumentation::EVENT) do |*, payload|
       @events << payload
     end
-    RailsMcp.registry.clear
+    RegisteredTools.list = []
     TestMcpController.resolver = nil
     @app = nil
     route_to(TestMcpController)
@@ -75,7 +75,7 @@ class RealWorldHardeningTest < Minitest::Test
 
   def teardown
     ActiveSupport::Notifications.unsubscribe(@subscriber)
-    RailsMcp.registry.clear
+    RegisteredTools.list = []
     TestMcpController.resolver = nil
     route_to(TestMcpController)
   end
@@ -139,7 +139,7 @@ class RealWorldHardeningTest < Minitest::Test
       ApplicationController.forgery_protection_strategy,
       "the fixture ApplicationController must genuinely enforce CSRF (exception strategy)"
     TestMcpController.resolver = ->(_req) { ALICE }
-    RailsMcp.registry.register(EchoTool)
+    RegisteredTools.list = [EchoTool]
 
     response = post_mcp("tools/call", {name: "echo", arguments: {}})
 
@@ -158,7 +158,7 @@ class RealWorldHardeningTest < Minitest::Test
     assert_includes Rails.application.config.hosts.grep(String), FixtureApp::PRODUCTION_HOST,
       "the production host must be in config.hosts so the guard can admit it"
     TestMcpController.resolver = ->(_req) { ALICE }
-    RailsMcp.registry.register(EchoTool)
+    RegisteredTools.list = [EchoTool]
 
     response = post_mcp("tools/call", {name: "echo", arguments: {}}, host: FixtureApp::PRODUCTION_HOST)
 
@@ -172,7 +172,7 @@ class RealWorldHardeningTest < Minitest::Test
   # not the guard being disabled.
   def test_unlisted_host_is_forbidden_proving_the_guard_is_active
     TestMcpController.resolver = ->(_req) { ALICE }
-    RailsMcp.registry.register(EchoTool)
+    RegisteredTools.list = [EchoTool]
 
     response = post_mcp("tools/call", {name: "echo", arguments: {}}, host: "evil.example.com")
 
@@ -199,12 +199,14 @@ class RealWorldHardeningTest < Minitest::Test
       end
     end
 
-    RailsMcp.registry.register(build_reloadable_tool.call)
+    RegisteredTools.list = [build_reloadable_tool.call]
     first = post_mcp("tools/list")
     assert_equal 200, first.status
 
-    # Redefine and re-register (the reload): a NEW class object, same class name/tool_name.
-    RailsMcp.registry.register(build_reloadable_tool.call)
+    # Redefine (the reload): a NEW class object, same class name/tool_name, put back on the
+    # app-owned list. The controller resolves `RegisteredTools.all` fresh per request, so the
+    # server is rebuilt from the current class — no stale, colliding class object survives.
+    RegisteredTools.list = [build_reloadable_tool.call]
 
     second = post_mcp("tools/list")
     assert_equal 200, second.status, "a reloaded tool must not raise ToolNotUnique"
@@ -219,7 +221,7 @@ class RealWorldHardeningTest < Minitest::Test
   # audit event fires. No regression to the fail-closed default.
   def test_fail_closed_seam_denies_and_runs_no_tool
     TestMcpController.resolver = nil
-    RailsMcp.registry.register(EchoTool)
+    RegisteredTools.list = [EchoTool]
 
     response = post_mcp("tools/call", {name: "echo", arguments: {}})
 
@@ -240,7 +242,7 @@ class RealWorldHardeningTest < Minitest::Test
   # R5: the invoke.rails_mcp audit payload keys are unchanged (user, tool, args, result).
   def test_audit_payload_keys_are_frozen
     TestMcpController.resolver = ->(_req) { ALICE }
-    RailsMcp.registry.register(EchoTool)
+    RegisteredTools.list = [EchoTool]
 
     post_mcp("tools/call", {name: "echo", arguments: {}})
 
@@ -256,7 +258,7 @@ class RealWorldHardeningTest < Minitest::Test
   # the tool and the payload, and is never an argument the AI supplies.
   def test_identity_rides_server_context_not_an_arg
     TestMcpController.resolver = ->(_req) { ALICE }
-    RailsMcp.registry.register(EchoTool)
+    RegisteredTools.list = [EchoTool]
 
     body = JSON.parse(post_mcp("tools/list").body)
     echo = body.dig("result", "tools").find { |t| t["name"] == "echo" }
@@ -270,7 +272,7 @@ class RealWorldHardeningTest < Minitest::Test
   # tools; nothing generic or console-like is exposed.
   def test_allow_list_is_the_only_surface
     TestMcpController.resolver = ->(_req) { ALICE }
-    RailsMcp.registry.register(EchoTool)
+    RegisteredTools.list = [EchoTool]
 
     names = JSON.parse(post_mcp("tools/list").body).dig("result", "tools").map { |t| t["name"] }
 
@@ -279,7 +281,7 @@ class RealWorldHardeningTest < Minitest::Test
 
   # R5: read-only v1 scope holds — a registered tool advertises the read-only annotation.
   def test_read_only_scope_holds
-    RailsMcp.registry.register(EchoTool)
+    RegisteredTools.list = [EchoTool]
     TestMcpController.resolver = ->(_req) { ALICE }
 
     body = JSON.parse(post_mcp("tools/list").body)

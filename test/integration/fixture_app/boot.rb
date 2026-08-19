@@ -13,7 +13,8 @@
 #     `protect_from_forgery with: :exception` — so CSRF is genuinely on (R2 CSRF),
 #   * a booted `Rails.application` whose `config.hosts` carries a non-loopback production
 #     Host — so the SDK DNS-rebinding guard is genuinely exercised (R2 Host),
-#   * a reload stand-in (a redefined tool class) driven through the registry (R1).
+#   * a reload stand-in (a redefined tool class) driven through the app-owned
+#     `RegisteredTools.all` list, re-resolved per request (R1 / spec 0009 R4).
 #
 # The app WIRES the two fail-closed seams by SUBCLASSING the verbatim base classes
 # (`TestMcpController < McpController`, tools `< ApplicationMcpTool`) and overriding the
@@ -95,13 +96,38 @@ module FixtureApp
     end
 
     # The app-side infrastructure the stamped templates lean on: a real
-    # ApplicationController with CSRF genuinely on.
+    # ApplicationController with CSRF genuinely on, and the app-owned `RegisteredTools`
+    # allow-list the verbatim `mcp_controller.rb.tt` passes to `MCP::Server`.
     def define_app_infrastructure!
       unless defined?(::ApplicationController)
         Object.const_set(:ApplicationController, Class.new(ActionController::Base) do
           protect_from_forgery with: :exception
         end)
       end
+
+      define_registered_tools! unless defined?(::RegisteredTools)
+    end
+
+    # The app-owned allow-list (spec 0009). The stamped `registered_tools.rb.tt` returns a
+    # fixed array literal; the fixture makes `.all` test-settable so each test can list the
+    # tools it exercises (the same "an ordinary array of tool classes, resolved per
+    # request" model). Tests set `RegisteredTools.list = [...]`; `.all` returns it fresh
+    # each request, so a redefined class (the reload stand-in) is named fresh — reload-safe
+    # by construction, with no registry keying or collision code (spec 0009 R4).
+    def define_registered_tools!
+      Object.const_set(:RegisteredTools, Module.new do
+        class << self
+          attr_writer :list
+
+          def list
+            @list ||= []
+          end
+
+          def all
+            list
+          end
+        end
+      end)
     end
 
     # Load the rendered templates verbatim as the top-level McpController and

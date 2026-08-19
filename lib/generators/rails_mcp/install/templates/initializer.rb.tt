@@ -2,17 +2,13 @@
 
 # rails_mcp initializer — APP-OWNED, yours to edit.
 #
-# Two jobs: (1) register the tools the AI may call (the allow-list), and (2)
-# subscribe to the audit event and write your own audit row. The gem ships neither
-# a tool set nor an audit sink — both are yours.
-
-# --- Allow-list: register the tools the AI may call ------------------------
-# Only registered tools are listable or callable (there is no generic executor and
-# no console tool). Register each tool you want to expose. Autoloaded app classes are
-# available on the `to_prepare` hook.
-Rails.application.config.to_prepare do
-  RailsMcp.registry.register(ExampleReadOnlyTool)
-end
+# One job: subscribe to the audit event and write your own audit row. The gem ships
+# no audit sink — it is yours.
+#
+# The allow-list — the tools the AI may call — is NOT here. It lives in
+# app/mcp/registered_tools.rb (RegisteredTools.all), the one place listing what the
+# AI may call. McpController passes that list to MCP::Server per request. To expose a
+# tool, add its class to that array; nothing is registered here.
 
 # --- Audit seam: subscribe and write an audit row --------------------------
 # The gem publishes exactly one "invoke.rails_mcp" event per tool call and persists

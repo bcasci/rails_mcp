@@ -22,7 +22,6 @@ end
   rails_mcp/annotations
   rails_mcp/instrumentation
   rails_mcp/tool
-  rails_mcp/registry
 ].each do |submodule|
   path = File.expand_path("#{submodule}.rb", __dir__)
   require_relative submodule if File.exist?(path)

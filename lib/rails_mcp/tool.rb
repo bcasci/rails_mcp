@@ -38,12 +38,6 @@ module RailsMcp
         new.__send__(:invoke, user: user, args: args)
       end
 
-      # Build a text tool result. Convenience so a class-level `call` override or a test
-      # can produce the same result shape as the instance helper.
-      def text_response(text)
-        MCP::Tool::Response.new([{type: "text", text: text}])
-      end
-
       private
 
       # Pull the acting user out of the app-populated context without inventing
@@ -100,9 +94,10 @@ module RailsMcp
     end
 
     # Build a text tool result (R2). `text_response("ok")` yields a single text content
-    # item equal to "ok".
+    # item equal to "ok". The single public entry point — builds the
+    # `MCP::Tool::Response` directly (API-02 / SIMP-01).
     def text_response(text)
-      self.class.text_response(text)
+      MCP::Tool::Response.new([{type: "text", text: text}])
     end
 
     private

@@ -56,7 +56,8 @@ class RailsMcp::ToolTest < Minitest::Test
     assert_equal [{type: "text", text: "household 42"}], response.content
   end
 
-  # R2: text_response("ok") yields a text content result equal to "ok".
+  # R6: text_response("ok") on a tool instance yields a single text content result
+  # equal to "ok" — the instance method builds the MCP::Tool::Response directly.
   def test_text_response_yields_text_content
     klass = Class.new(RailsMcp::Tool) do
       tool_name "greet"
@@ -68,6 +69,33 @@ class RailsMcp::ToolTest < Minitest::Test
 
     assert_instance_of MCP::Tool::Response, response
     assert_equal [{type: "text", text: "ok"}], response.content
+  end
+
+  # R6: text_response is the single public entry point — the instance method. There
+  # is no class-level `def self.text_response` twin.
+  def test_text_response_is_only_an_instance_method
+    refute_respond_to RailsMcp::Tool, :text_response,
+      "the class-level text_response twin must be removed (API-02 / SIMP-01)"
+  end
+
+  # R2 (ARCH-02): a tool that sets a raw `input_schema` and no `arg` round-trips its
+  # declared property to `perform` when invoked end to end — the allow-list is the
+  # effective schema's property keys, so `q` reaches `perform` (not dropped to `{}`).
+  def test_raw_input_schema_tool_round_trips_declared_property_to_perform
+    seen = nil
+    klass = Class.new(RailsMcp::Tool) do
+      tool_name "search"
+      input_schema(properties: {q: {type: "string"}}, required: ["q"])
+      define_method(:authorize) { |**| true }
+      define_method(:perform) do |**args|
+        seen = args
+        text_response("ran")
+      end
+    end
+
+    klass.call(q: "hello", z: 1, server_context: context)
+
+    assert_equal({q: "hello"}, seen)
   end
 
   # R1 allow-list on args: an undeclared argument is dropped before perform, so

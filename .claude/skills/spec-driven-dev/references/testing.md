@@ -8,6 +8,15 @@ Minitest, standardrb style. Tests mirror SPEC acceptance criteria.
   `lib/` path, one test file per class/module).
 - Generator test → `test/generators/`.
 - End-to-end / mounted `/mcp` against a dummy app → `test/integration/`.
+- **Name for the unit or seam, never for a posture** (STD-03). A test file and its test class are
+  named for the `lib/` path or the seam under test, never for a spec theme, phase, or posture
+  word — no `*_hardening_`, `*_end_to_end_`, `real_world_`, `smoke_`, `sanity_`, or
+  `neutral_conduit_` names. One seam/behavior area per integration file; split a grab-bag into a
+  file per flow rather than a single posture-framed catch-all.
+- **Don't test the text of a `.md` doc** (TEST-05). Asserting that prose or marketing sentences
+  appear in a `.md` file is a finding — tests assert runtime behavior. A docs test is allowed
+  only when it either (a) asserts a literal code token in the doc equals the same token in shipped
+  code (a drift guard) or (b) executes an example extracted from the doc and asserts its behavior.
 
 ## Before adding a test
 
@@ -31,7 +40,8 @@ A mock that doesn't match reality passes while production breaks. Default to REA
 real; only app-owned seams the gem doesn't ship (staff user, `ApplicationMcpTool`, tenant)
 may be faked.
 
-- **Real, sociable by default.** Real tool subclasses, registry, fail-closed `authorize`, and
+- **Real, sociable by default.** Real tool subclasses, a real `RegisteredTools.all` allow-list
+  array handed to `MCP::Server.new(tools:)`, fail-closed `authorize`, and
   `ActiveSupport::Notifications` subscription. Build objects; don't stub their own accessors
   (build a real `input_schema`, don't stub `#input_schema`).
 - **Assert outcomes.** Use an interaction assertion only for a side effect with no post-state:
@@ -63,5 +73,13 @@ may be faked.
 
 - Default `authorize` denies (R3).
 - Exactly one notification per invoke, success or failure; no credential in the payload (R4).
-- The registry refuses an unregistered tool; no arbitrary-Ruby/console surface (R10).
+- `MCP::Server` refuses a `tools/call` for an unlisted name — a name not in the
+  `RegisteredTools.all` array handed to `MCP::Server.new(tools:)` (the allow-list is `mcp`'s;
+  ADR-0013). The served array is the allow-list; test a call for a name outside it is rejected.
+- A redefined tool class rebuilds the server without `ToolNotUnique` — reload-safe by
+  construction: the per-request list references current, reloaded classes, so re-defining a tool
+  and rebuilding `MCP::Server.new(tools: RegisteredTools.all)` raises no `MCP::ToolNotUnique`
+  (ADR-0013).
+- No arbitrary-Ruby/console surface (R10) — no generic executor, `eval`, or `rails runner` path
+  is reachable through the served tools.
 - A missing required arg and a wrong-typed arg are rejected before `perform` (R1).

@@ -58,6 +58,13 @@ A `Stop` hook nudges once per session to record durable knowledge. Route it:
   the Nygard template (Status / Context / Decision / Consequences). Write it at decision
   time, not reconstructed. ADRs are immutable once Accepted — to change one, add a new ADR
   that supersedes it and link both ways.
+  - **ADR-integrity clause:** when a new ADR removes or changes machinery an existing
+    **Accepted** ADR describes, EVERY such earlier ADR MUST be re-statused (`Superseded` or
+    `Partially superseded`) with a **bidirectional link** to the new one, in the **same
+    change** that lands the new ADR — never left as a stale Accepted ADR describing a removed
+    symbol. A grep test asserts that no Accepted, non-superseded ADR names a removed symbol
+    (a symbol no longer present in `lib/`); adding that check is a code-spec task, cross-ref
+    SEC-04. (DOC-02)
 - **Convention or gotcha** specific to this gem → add a line here.
 - **Cross-project or behavioral** learning → user-local memory, not this repo.
 
@@ -66,12 +73,35 @@ recurring gotchas start accumulating across the multi-app rollout.
 
 ### Machine-checkable ADR constraints
 
-Some ADRs are standing constraints, enforced by grep in CI (not just prose):
+Some ADRs are standing constraints. A rule may be called **machine-checkable** or
+**CI-enforced** ONLY if a **named check runs it in CI** — cite the check's `file:line` or the
+shared rake task that runs it. A local git hook (`.githooks/pre-commit`) is **NOT CI**: it can
+be bypassed or skipped and does not gate a merge, so a hook-only rule is not machine-checkable.
+Each constraint below is listed with its enforcing check; adding a machine-checkable claim
+requires adding the check **in the same change**. Shared checks are extracted into a **rake
+task** invoked by both `.githooks/pre-commit` and CI, so the two cannot drift. (SEC-04 —
+adding/wiring the actual CI checks is a code-spec task; this section states the rule, it does
+not assert every check below already runs in CI.)
 
 - ADR-0001 / ADR-0004 — no hand-rolled JSON-RPC/transport, no console or arbitrary-Ruby
   tool, no gem-side policy or tenant references.
+- ADR-0004 dynamic-dispatch coverage — the arbitrary-Ruby grep MUST cover, over `lib/`, the
+  full set of dynamic-dispatch forms, not just the eval family: `eval`, `instance_eval`,
+  `class_eval`, `module_eval`, `binding` (eval-family) **PLUS** `constantize`, `const_get`,
+  `public_send`, and `send`/`__send__` called with a **non-literal** argument. (SEC-05,
+  mirrored from `REVIEW.md`.)
 - ADR-0010 — no tenancy on the shipped surface: `grep -ri 'tenant\|shard\|multitenan'` over
   `lib/`, `docs/` (excluding `docs/adr/`), and `README.md` returns nothing.
+
+## Pre-publish checklist (public release)
+
+Before cutting a public release, in addition to the versioning/changelog rules in
+`docs/conventions.md`:
+
+- The repo carries a `SECURITY.md` (a private vulnerability-disclosure path) and a
+  `CODE_OF_CONDUCT` linked from the README. Both stay **in-repo** but are **excluded from the
+  packaged gem** — they are project-governance files, not runtime paths, so the `spec.files`
+  allowlist must not ship them (cross-ref PKG-01). (DOC-03)
 
 ## Conventions
 

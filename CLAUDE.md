@@ -92,6 +92,21 @@ not assert every check below already runs in CI.)
   mirrored from `REVIEW.md`.)
 - ADR-0010 — no tenancy on the shipped surface: `grep -ri 'tenant\|shard\|multitenan'` over
   `lib/`, `docs/` (excluding `docs/adr/`), and `README.md` returns nothing.
+- ADR-0015 — no `mcp` private internals in `lib/`: `grep -rn "@input_schema_value" lib/`
+  returns nothing. Not yet a CI grep — its guardrail is the public-contract **drift test**
+  `test/rails_mcp/mcp_contract_test.rb`, which fails if a `bundle update mcp` changes the
+  public behavior the args allow-list relies on.
+
+## Gotchas
+
+- Args allow-list = the tool's **effective** input schema, not its `arg` list. A tool that
+  sets a raw `input_schema(...)` and declares no `arg` still round-trips its schema
+  properties to `perform` — the allow-list is `input_schema.to_h[:properties]` keys when a
+  schema was set explicitly, else `declared_arg_names` (`RailsMcp::Args#effective_arg_names`).
+  Undeclared args are dropped either way. Never re-derive the allow-list from `arg`
+  declarations alone; that was the ARCH-02 data-loss bug.
+- The explicit-schema distinction lives in rails_mcp's own `@explicit_input_schema` class
+  flag (set by the `input_schema` setter override), not in any `mcp` ivar (ADR-0015).
 
 ## Pre-publish checklist (public release)
 

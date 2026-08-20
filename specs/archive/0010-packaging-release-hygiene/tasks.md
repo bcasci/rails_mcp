@@ -1,5 +1,14 @@
 # TASKS — Packaging, CI & release metadata
 
+Completed Wed Aug 19 23:39:21 EDT 2026 at commit c9f9058
+
+All tasks delivered:
+- [x] T1 — Gemspec allowlist + metadata + drop sig/, and the packaging test
+- [x] T2 — CHANGELOG: promote [Unreleased] to dated 0.2.0 + link refs
+- [x] T3 — CI matrix + per-Rails gemfiles
+- [x] T4 — SECURITY.md, README links, CODE_OF_CONDUCT fix
+- [x] T5 — Full gate
+
 Task breakdown for spec 0010. Each task owns a DISJOINT set of files. Builds on shipped specs
 0001–0009 (archived). References like `R1` point to this spec's `spec.md`.
 

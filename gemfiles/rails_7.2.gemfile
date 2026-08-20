@@ -1,0 +1,9 @@
+# frozen_string_literal: true
+
+# Pins the Rails 7.2 line for the CI matrix (CI-01). Reuses the root Gemfile's
+# dev deps and the gemspec; selected via BUNDLE_GEMFILE.
+eval_gemfile "../Gemfile"
+
+gem "rails", "~> 7.2.0"
+gem "railties", "~> 7.2.0"
+gem "activesupport", "~> 7.2.0"

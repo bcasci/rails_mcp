@@ -9,6 +9,7 @@
 
 # A library should not ship a lockfile — let each consumer/CI resolve per platform.
 /Gemfile.lock
+gemfiles/*.lock
 
 # built gem artifacts
 *.gem

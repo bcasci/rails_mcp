@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.summary = "Expose selected Rails app actions to an AI client over MCP."
   spec.description = "A Rails gem, on top of the official mcp gem, that exposes a hand-picked " \
     "allow-list of app actions to an AI client over MCP (Model Context Protocol). The gem " \
-    "provides the tool DSL and seams; each app owns authorization, audit, and tenant scoping. " \
+    "provides the tool DSL and seams; each app owns authorization, audit, and identity. " \
     "A safer replacement for raw rails console/runner access."
   spec.homepage = "https://github.com/bcasci/rails_mcp"
   spec.license = "MIT"
@@ -21,16 +21,16 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = spec.homepage
   spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
+  spec.metadata["bug_tracker_uri"] = "#{spec.homepage}/issues"
+  spec.metadata["rubygems_mfa_required"] = "true"
 
-  # Specify which files should be added to the gem when it is released.
-  # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
-  gemspec = File.basename(__FILE__)
-  spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL) do |ls|
-    ls.readlines("\x0", chomp: true).reject do |f|
-      (f == gemspec) ||
-        f.start_with?(*%w[bin/ Gemfile .gitignore test/ .github/ .standard.yml])
-    end
-  end
+  # The packaged file list is an explicit allowlist of runtime paths only — never a
+  # denylist (PKG-01, docs/conventions.md "Packaging"). Shipping the AI-build apparatus
+  # or the control catalog (.claude/, REVIEW.md, .githooks/, docs/adr/, specs/) leaks how
+  # this security-adjacent gem is defended; SECURITY.md and CODE_OF_CONDUCT.md stay in-repo
+  # but out of the package. Only lib/ plus the three named runtime docs ship.
+  spec.files = (Dir.glob("lib/**/*", base: __dir__) + %w[README.md CHANGELOG.md LICENSE.txt])
+    .select { |f| File.file?(File.join(__dir__, f)) }
   spec.bindir = "exe"
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]

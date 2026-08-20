@@ -107,6 +107,15 @@ After checking out the repo, run `bin/setup` to install dependencies, then `rake
 `rake` runs the test suite and standardrb. The pre-commit hook runs the same gate plus the
 ADR-constraint greps; do not bypass it.
 
+## Security
+
+Please report vulnerabilities privately — see [`SECURITY.md`](./SECURITY.md). Do not open a
+public issue for a vulnerability.
+
+## Code of Conduct
+
+Participation in this project is governed by the [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md).
+
 ## License
 
 Released under the [MIT License](https://opensource.org/licenses/MIT).

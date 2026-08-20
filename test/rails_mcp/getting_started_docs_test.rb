@@ -41,31 +41,38 @@ class GettingStartedSeamsDocsTest < Minitest::Test
       "the static-Bearer-vs-OAuth reality must be stated once"
   end
 
-  # --- R4: CHANGELOG [Unreleased] entry ---------------------------------------
+  # --- R4: CHANGELOG records the changes -------------------------------------
+  #
+  # Spec 0010 (PKG-02) promoted the former `[Unreleased]` block to the dated
+  # `## [0.2.0] - 2026-08-19` section and left a fresh empty `[Unreleased]`. The
+  # durable R4 requirement is that these changes are *recorded* in the CHANGELOG;
+  # they now live under the released `0.2.0` section, so these assertions target
+  # `recorded_section` (the released block) rather than the transient
+  # `[Unreleased]` staging area.
 
   def test_changelog_has_an_unreleased_section
     assert_match(/^##\s*\[Unreleased\]/, CHANGELOG)
   end
 
-  # R4: [Unreleased] records the tenancy strip (spec 0006).
+  # R4: the CHANGELOG records the tenancy strip (spec 0006).
   def test_changelog_unreleased_records_the_tenancy_strip
-    assert_match(/tenanc/i, unreleased_section)
+    assert_match(/tenanc/i, recorded_section)
   end
 
-  # R4: [Unreleased] records the dummy_app removal.
+  # R4: the CHANGELOG records the dummy_app removal.
   def test_changelog_unreleased_records_the_dummy_app_removal
-    assert_match(/dummy_app/, unreleased_section)
+    assert_match(/dummy_app/, recorded_section)
   end
 
-  # R4: [Unreleased] records the doc seam/route corrections.
+  # R4: the CHANGELOG records the doc seam/route corrections.
   def test_changelog_unreleased_records_the_doc_seam_route_corrections
-    assert_match(/seam/i, unreleased_section)
-    assert_match(/route/i, unreleased_section)
+    assert_match(/seam/i, recorded_section)
+    assert_match(/route/i, recorded_section)
   end
 
-  # R4: [Unreleased] records the Getting-started recipe.
+  # R4: the CHANGELOG records the Getting-started recipe.
   def test_changelog_unreleased_records_the_getting_started_recipe
-    assert_match(/getting[- ]started/i, unreleased_section)
+    assert_match(/getting[- ]started/i, recorded_section)
   end
 
   # --- R5: no gem runtime change (docs/CHANGELOG only) -------------------------
@@ -83,8 +90,10 @@ class GettingStartedSeamsDocsTest < Minitest::Test
 
   private
 
-  # The text between `## [Unreleased]` and the next `## [` heading.
-  def unreleased_section
-    CHANGELOG[/^##\s*\[Unreleased\].*?(?=^##\s*\[)/m] || ""
+  # The text where the spec-0007/0006 changes are recorded. Spec 0010 promoted
+  # them from `[Unreleased]` to the dated `## [0.2.0]` section, so match that
+  # released block (up to the next `## [` version heading).
+  def recorded_section
+    CHANGELOG[/^##\s*\[0\.2\.0\].*?(?=^##\s*\[)/m] || ""
   end
 end

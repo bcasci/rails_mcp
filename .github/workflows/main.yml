@@ -10,11 +10,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Ruby ${{ matrix.ruby }}
+    name: Ruby ${{ matrix.ruby }} / ${{ matrix.gemfile }}
     strategy:
+      fail-fast: false
       matrix:
         ruby:
-          - '3.2.0'
+          - '3.2'
+          - '3.3'
+          - '3.4'
+        gemfile:
+          - rails_7.1.gemfile
+          - rails_7.2.gemfile
+          - rails_8.0.gemfile
 
     steps:
       - uses: actions/checkout@v4
@@ -26,4 +33,6 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
       - name: Run the default task
+        env:
+          BUNDLE_GEMFILE: gemfiles/${{ matrix.gemfile }}
         run: bundle exec rake

@@ -1,5 +1,7 @@
 # TASKS — Docs accuracy & correctness
 
+Completed Thu Aug 20 00:52:11 EDT 2026 at commit dec6d48
+
 Task breakdown for spec 0012. Each task owns a DISJOINT set of files. Builds on shipped specs
 0001–0011 (archived). References like `R1` point to this spec's `spec.md`. All findings resolved:
 DOC-01, DOC-02, ARCH-03, DOC-04, DOC-05.
@@ -13,7 +15,7 @@ Every task is `autonomous`.
 
 ## Layer 0 — Correct docs, ADR statuses, and the code comment (parallel, disjoint files)
 
-### T1 — README: drop the false handshake note; keep curl bodies intact
+### T1 — README: drop the false handshake note; keep curl bodies intact — DONE
 **Owns:**
 - `README.md` (CHANGED: delete the `# If this returns a "not initialized" error, send an
   `initialize` request first …` line at README.md:93; no README text tells the reader to send
@@ -27,7 +29,7 @@ Every task is `autonomous`.
 `Looked up: first call` result.
 **Tag:** `autonomous`.
 
-### T2 — ADRs: re-status 0007/0008, correct the 0008 code, link 0013 back; add the ADR-integrity grep test
+### T2 — ADRs: re-status 0007/0008, correct the 0008 code, link 0013 back; add the ADR-integrity grep test — DONE
 **Owns:**
 - `docs/adr/0007-convenience-without-lock-in.md` (CHANGED: `Status:` →
   `Accepted (2026-08-13); partially superseded by [ADR-0013](0013-drop-registry-for-app-owned-tool-list.md) (2026-08-19)`;
@@ -53,7 +55,7 @@ Every task is `autonomous`.
 non-superseded ADR reintroduced a removed symbol.
 **Tag:** `autonomous`.
 
-### T3 — tool.rb comment: scope the one-event claim to the pipeline
+### T3 — tool.rb comment: scope the one-event claim to the pipeline — DONE
 **Owns:**
 - `lib/rails_mcp/tool.rb` (CHANGED: the class comment ~line 23-24 — "emitting exactly one
   `invoke.rails_mcp` audit event per call whether it succeeds, is denied, or raises (R4)" → "exactly
@@ -67,7 +69,7 @@ non-superseded ADR reintroduced a removed symbol.
 names the pre-pipeline short-circuit; `git diff` shows only comment lines changed.
 **Tag:** `autonomous`.
 
-### T4 — USAGE + SEAMS: stateless reality, scoped audit contract, client-facing error surface
+### T4 — USAGE + SEAMS: stateless reality, scoped audit contract, client-facing error surface — DONE
 **Owns:**
 - `docs/USAGE.md` (CHANGED:
   - R1: delete the "handshake is ordered: send `initialize` **first**" paragraph and the
@@ -98,7 +100,7 @@ files; the raise wording corrected; the SEAMS "What the client receives" subsect
 
 ## Layer 1 — Pin every corrected claim with a verbatim-fixture test
 
-### T5 — Integration tests pinning DOC-01 / ARCH-03 / DOC-04 / DOC-05 against the verbatim fixture
+### T5 — Integration tests pinning DOC-01 / ARCH-03 / DOC-04 / DOC-05 against the verbatim fixture — DONE
 **Owns:**
 - `test/integration/docs_accuracy_test.rb` (NEW: all four pinning tests, driven through the verbatim
   fixture controller — never a stubbed stand-in):
@@ -126,7 +128,7 @@ exact documented request; no stubbed stand-in.
 
 ## Layer 2 — Gate
 
-### T6 — Full gate + spec checks
+### T6 — Full gate + spec checks — DONE
 **Owns:** (no new files — runs checks only)
 
 **Depends on:** T1, T2, T3, T4, T5.

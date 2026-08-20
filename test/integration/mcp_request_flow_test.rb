@@ -349,32 +349,48 @@ class McpRequestFlowTest < Minitest::Test
       "the bearer token must not appear inside the nested payload[:args]"
   end
 
-  # R4 (spec 0011): a tool whose `perform` raises surfaces a GENERIC error to the client,
-  # not the raw exception message or a backtrace. The mcp gem wraps a perform raise as a
-  # JSON-RPC error whose top-level `message` is the generic "Internal error" and there is
-  # no stack trace / HTML in the body — the developer detail belongs in the audit
-  # payload/logs, never the surfaced JSON-RPC message.
-  def test_raising_perform_surfaces_a_generic_error_not_the_raw_message_or_a_backtrace
-    interleave = Class.new(ApplicationMcpTool) do
+  # R4 (spec 0011): a tool whose `perform` raises surfaces a GENERIC JSON-RPC error
+  # `message` ("Internal error"), never a backtrace or an HTML stack-trace page. The gem
+  # is a neutral conduit (ADR-0012): the mcp gem — not this gem — owns the error surface,
+  # and its default DOES place a developer-detail string in the JSON-RPC `error.data`
+  # (`"Internal error calling tool <name>: <the raise message>"`). This test asserts the
+  # real, verified behavior of the shipped stack, not a false "the raw message never
+  # surfaces" claim: the raw message rides `error.data` and NOWHERE ELSE — the top-level
+  # `error.message` stays generic, and no stack trace / HTML page leaks. An app that must
+  # suppress `error.data` too configures the mcp gem's exception reporter itself; the gem
+  # ships no such policy.
+  def test_raising_perform_surfaces_a_generic_error_message_with_detail_only_in_error_data
+    raw_message = "internal detail should not surface generically"
+    raiser = Class.new(ApplicationMcpTool) do
       tool_name "raiser"
       description "A tool that raises (read-only)."
       read_only!
+      define_singleton_method(:raise_message) { raw_message }
       def self.name = "FixtureApp::RaisingTool"
       def authorize(user:, args:, tool:) = (raise RailsMcp::NotAuthorized if user.nil?)
-      def perform(**) = raise "internal detail should not surface generically"
+      def perform(**) = raise self.class.raise_message
     end
     TestMcpController.resolver = ->(_req) { ALICE }
 
-    with_registered_tools([interleave]) do
+    with_registered_tools([raiser]) do
       response = post_mcp("tools/call", {name: "raiser", arguments: {}})
 
       error = JSON.parse(response.body).fetch("error")
       assert_equal "Internal error", error["message"],
-        "the surfaced JSON-RPC error message must be generic, not the raw exception message"
+        "the surfaced top-level JSON-RPC error message must be generic, not the raw exception message"
+      refute_includes error["message"].to_s, raw_message,
+        "the generic top-level message must not carry the raw exception text"
       refute_includes response.body.downcase, "backtrace",
         "no backtrace is surfaced to the client"
       refute_includes response.body, "<html",
         "the surfaced error is a JSON-RPC error, not an HTML stack-trace page"
+
+      # The mcp gem's default surface DOES put a developer-detail string in error.data —
+      # asserting it here documents the real, verified boundary (and fails if a future mcp
+      # version moves the detail into error.message, where the generic-message guarantee
+      # would then be broken).
+      assert_includes error.fetch("data").to_s, raw_message,
+        "the mcp gem carries the developer detail in error.data (never in error.message)"
     end
   end
 

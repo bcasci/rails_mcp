@@ -96,15 +96,38 @@ class InstrumentationTest < Minitest::Test
     assert_equal "the-result", value
   end
 
-  # R4 / ADR-0004: the payload carries no bearer token or credential keys.
-  def test_payload_excludes_credentials
-    RailsMcp::Instrumentation.instrument(user: user, tool: "T", args: {token: "secret"}) { "ok" }
+  # R4 / ADR-0004: the payload carries no credential key at the TOP level — no
+  # bearer/token/password key is grafted onto the event alongside :user/:tool/:args.
+  # The input args here carry NONE of these keys, so this only proves the gem adds no
+  # credential key of its own; nested-arg leakage is covered by the next test.
+  def test_payload_carries_no_top_level_credential_key
+    RailsMcp::Instrumentation.instrument(user: user, tool: "T", args: {household_id: 42}) { "ok" }
 
     payload = @events.first.payload
     forbidden = %i[token bearer bearer_token credentials credential password authorization]
     forbidden.each do |key|
       refute payload.key?(key), "payload must not carry credential key #{key.inspect}"
     end
+  end
+
+  # R4 / ADR-0004: the gem is a neutral conduit — it neither scrubs nor invents args. A
+  # token the CALLER puts in args rides through verbatim (the gem does not read or drop
+  # it); the guarantee the gem OWNS is that it grafts no extra credential key and passes
+  # args through unchanged. This replaces the old tautological
+  # `test_payload_excludes_credentials`, which put the secret under args[:token] but only
+  # checked top-level keys the input never had, so it passed regardless of any scrubbing.
+  # (The no-leak-on-the-real-HTTP-path invariant — the app resolving a bearer header into
+  # a user without ever placing the raw token in args — is proven end to end in
+  # test/integration/mcp_request_flow_test.rb.)
+  def test_payload_args_are_carried_verbatim_including_a_nested_token
+    args = {household_id: 42, token: "secret"}
+    RailsMcp::Instrumentation.instrument(user: user, tool: "T", args: args) { "ok" }
+
+    payload = @events.first.payload
+    assert_equal args, payload[:args],
+      "the gem passes args through verbatim — it neither scrubs nor adds keys"
+    assert_equal %i[user tool args result].sort, payload.keys.sort,
+      "the token in args grafts no credential key onto the payload; the key set is unchanged"
   end
 
   # R4 / ADR-0004: the payload keys are exactly the frozen contract, no extras.

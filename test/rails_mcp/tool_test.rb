@@ -151,16 +151,16 @@ class RailsMcp::ToolTest < Minitest::Test
     assert_instance_of klass, seen[:tool]
   end
 
-  # --- R3/R4: notification fires exactly once per invoke, including on raise ---
+  # --- R3/R4: Tool-specific wiring around the audit event ---
+  #
+  # Ownership split (SPEC R5): the event-count and payload-shape contract
+  # (exactly one event per invoke, the frozen `user`/`tool`/`args`/`result`|`error`
+  # payload keys) is owned by `instrumentation_test.rb`. The Tool tests here assert
+  # only the wiring — that `authorize` runs inside the single event, including the
+  # denial-before-`perform` path — not the payload shape or the success/failure counts.
 
-  # R4/R3: exactly one audit event on a successful, authorized invocation.
-  def test_success_emits_exactly_one_event
-    echo_tool.call(household_id: 1, server_context: context)
-
-    assert_equal 1, @events.length
-  end
-
-  # R4/R3: the deny path still emits exactly one event, recording the error.
+  # R4/R3: the deny path still emits exactly one event, recording the error — the
+  # denial-before-`perform` wiring proof (authorize failure is still audited once).
   def test_authorize_denial_emits_exactly_one_event_with_error
     klass = Class.new(RailsMcp::Tool) { tool_name "denied" }
 
@@ -170,41 +170,6 @@ class RailsMcp::ToolTest < Minitest::Test
 
     assert_equal 1, @events.length
     assert_instance_of RailsMcp::NotAuthorized, @events.first.payload[:error]
-  end
-
-  # R4/R2: a raising perform still emits exactly one event, recording the error.
-  def test_perform_raise_emits_exactly_one_event_with_error
-    klass = Class.new(RailsMcp::Tool) do
-      tool_name "boom"
-      def authorize(**) = true
-      def perform(**) = raise("kaboom")
-    end
-
-    assert_raises(RuntimeError) do
-      klass.call(server_context: context)
-    end
-
-    assert_equal 1, @events.length
-    assert_equal "kaboom", @events.first.payload[:error].message
-  end
-
-  # R4: the success event payload carries the acting user, tool name, and args.
-  def test_success_event_payload_carries_user_tool_and_args
-    staff = user(id: 5)
-    echo_tool.call(household_id: 8, server_context: {user: staff})
-
-    payload = @events.first.payload
-    assert_same staff, payload[:user]
-    assert_equal "echo", payload[:tool]
-    assert_equal({household_id: 8}, payload[:args])
-    assert payload.key?(:result)
-  end
-
-  # R4: only declared args reach the audit payload (undeclared are dropped first).
-  def test_event_args_are_the_declared_args_only
-    echo_tool.call(household_id: 8, injected: "x", server_context: context)
-
-    assert_equal({household_id: 8}, @events.first.payload[:args])
   end
 
   # --- mixins present (T1 args, T2 annotations wired into the base class) ---

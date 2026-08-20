@@ -37,6 +37,7 @@ module FixtureApp
   MCP_CONTROLLER_TEMPLATE = File.join(TEMPLATES, "mcp_controller.rb.tt")
   APPLICATION_MCP_TOOL_TEMPLATE = File.join(TEMPLATES, "application_mcp_tool.rb.tt")
   REGISTERED_TOOLS_TEMPLATE = File.join(TEMPLATES, "registered_tools.rb.tt")
+  EXAMPLE_READ_ONLY_TOOL_TEMPLATE = File.join(TEMPLATES, "example_read_only_tool.rb.tt")
 
   # A production, non-loopback Host the fixture serves under, added to config.hosts so the
   # DNS-rebinding guard admits it (R2 Host). Loopback would pass trivially and prove nothing.
@@ -114,29 +115,41 @@ module FixtureApp
     # because `ExampleReadOnlyTool` subclasses the verbatim `ApplicationMcpTool` and the
     # stamped `RegisteredTools.all` array literal names `ExampleReadOnlyTool`.
     def define_app_owned_tools!
-      define_example_read_only_tool! unless defined?(::ExampleReadOnlyTool)
+      wire_authorize_seam!
+      load_example_read_only_tool_verbatim! unless defined?(::ExampleReadOnlyTool)
       load_registered_tools_verbatim! unless defined?(::RegisteredTools)
     end
 
-    # The seeded example tool `registered_tools.rb.tt` names in its stamped array. It
-    # subclasses the verbatim `ApplicationMcpTool` (inheriting its seams) and WIRES the
-    # fail-closed authorize seam by overriding it — the same "subclass to wire seams"
-    # pattern the fixture uses for the controller. read-only, no required args, so a real
-    # cookieless tools/call through the stamped list succeeds end to end (spec 0009 R7).
-    def define_example_read_only_tool!
-      Object.const_set(:ExampleReadOnlyTool, Class.new(ApplicationMcpTool) do
-        tool_name "example_read_only"
-        description "Example read-only diagnostic tool (fixture)."
-        read_only!
-
+    # WIRE the fail-closed authorize seam, modelling the one edit every real install makes
+    # to its APP-OWNED `ApplicationMcpTool` (the template ships it raising; the developer
+    # replaces the raise with their real check). Reopening the app-owned base tool is that
+    # edit — the same "wire the fail-closed seam app-side" step the controller subclass
+    # does for authentication. The shipped template is proven fail-closed by its own
+    # source-equals-template guard; here the fixture wires it so a permitted, cookieless
+    # `tools/call` runs the stamped `ExampleReadOnlyTool#perform` end to end. A nil user
+    # still denies, so the fail-closed proof stays real.
+    def wire_authorize_seam!
+      warn_level = $VERBOSE
+      $VERBOSE = nil # the verbatim template ships authorize raising; wiring it redefines it
+      ApplicationMcpTool.class_eval do
         def authorize(user:, args:, tool:)
           raise RailsMcp::NotAuthorized, "no acting user" if user.nil?
         end
+      end
+    ensure
+      $VERBOSE = warn_level
+    end
 
-        def perform(**)
-          text_response("Looked up: example")
-        end
-      end)
+    # Load the stamped `example_read_only_tool.rb.tt` VERBATIM as the app-owned
+    # `ExampleReadOnlyTool`, the same way the controller/base-tool/allow-list templates are
+    # loaded — no `Object.const_set` or hand-written `perform(**)` stand-in (spec 0011 R2,
+    # TEST-02). The template carries no ERB, so the file IS the rendered output; a guard
+    # test asserts the loaded source is byte-identical. It declares a required `:subject`
+    # arg and returns "Looked up: #{subject}", inheriting the wired authorize seam, so a
+    # cookieless `tools/call` supplying `:subject` succeeds end to end.
+    def load_example_read_only_tool_verbatim!
+      source = template_source(EXAMPLE_READ_ONLY_TOOL_TEMPLATE)
+      eval(source, TOPLEVEL_BINDING, EXAMPLE_READ_ONLY_TOOL_TEMPLATE) # standard:disable Security/Eval
     end
 
     # Load the stamped `registered_tools.rb.tt` VERBATIM as the app-owned `RegisteredTools`

@@ -419,4 +419,40 @@ class InstallGeneratorTest < Rails::Generators::TestCase
         "example test must express audit-row-written")
     end
   end
+
+  # === spec 0011 R8 — doc-vs-template drift guards (migrated) ==================
+  #
+  # These two assertions are the only residue kept from the deleted doc-prose
+  # suites (spec 0011, TEST-05/SIMP-04). They are NOT prose-presence checks: each
+  # cross-checks that a snippet taught in docs/USAGE.md is byte-present in the
+  # rendered install template it documents, so the recipe cannot drift from the
+  # stamped code. Formerly getting_started_docs_test.rb:50-56 and
+  # neutral_conduit_docs_test.rb:103-109.
+
+  ROOT = File.expand_path("../..", __dir__)
+  USAGE = File.read(File.join(ROOT, "docs/USAGE.md"))
+  CONTROLLER_TT = File.read(
+    File.join(ROOT, "lib/generators/rails_mcp/install/templates/mcp_controller.rb.tt")
+  )
+
+  # spec 0011 R8: the bearer resolution taught in USAGE.md matches the stamped
+  # controller template (drift guard, migrated from getting_started_docs_test.rb).
+  def test_usage_bearer_resolution_matches_stamped_controller_template
+    stamped = "User.find_by(api_token: token)"
+    assert_includes CONTROLLER_TT, stamped,
+      "the stamped controller template must resolve via #{stamped}"
+    assert_includes USAGE, stamped,
+      "USAGE.md must resolve the bearer via the same #{stamped} the template ships"
+  end
+
+  # spec 0011 R8: the §1a hardening lines taught in USAGE.md match the stamped
+  # controller template (drift guard, migrated from neutral_conduit_docs_test.rb).
+  def test_usage_1a_hardening_matches_stamped_controller_template
+    ["skip_forgery_protection", "Rails.application.config.hosts.grep(String)"].each do |line|
+      assert_includes CONTROLLER_TT, line,
+        "the stamped controller template must ship the hardening line #{line}"
+      assert_includes USAGE, line,
+        "USAGE.md §1a must show the same hardening line #{line} the template ships"
+    end
+  end
 end

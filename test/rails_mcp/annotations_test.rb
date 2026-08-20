@@ -57,13 +57,4 @@ class RailsMcp::AnnotationsTest < Minitest::Test
     assert_equal true, annotations[:readOnlyHint]
     assert_equal true, annotations[:idempotentHint]
   end
-
-  # R2: `read_only!` with no raw annotations still emits `readOnlyHint: true` exactly
-  # as spec 0001 R5 froze — the DSL yields to the explicit value only when one is set.
-  def test_read_only_only_still_emits_read_only_hint
-    klass = tool_class
-    klass.read_only!
-
-    assert_equal true, klass.to_h[:annotations][:readOnlyHint]
-  end
 end

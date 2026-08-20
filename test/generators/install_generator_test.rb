@@ -431,18 +431,90 @@ class InstallGeneratorTest < Rails::Generators::TestCase
 
   ROOT = File.expand_path("../..", __dir__)
   USAGE = File.read(File.join(ROOT, "docs/USAGE.md"))
+  README = File.read(File.join(ROOT, "README.md"))
   CONTROLLER_TT = File.read(
     File.join(ROOT, "lib/generators/rails_mcp/install/templates/mcp_controller.rb.tt")
   )
 
-  # spec 0011 R8: the bearer resolution taught in USAGE.md matches the stamped
-  # controller template (drift guard, migrated from getting_started_docs_test.rb).
+  # spec 0013 R1 (SEC-01): the bearer resolution taught in USAGE.md matches the stamped
+  # controller template — now the secure digest-at-rest form (drift guard, migrated from
+  # getting_started_docs_test.rb).
   def test_usage_bearer_resolution_matches_stamped_controller_template
-    stamped = "User.find_by(api_token: token)"
+    stamped = "find_by(api_token_digest: Digest::SHA256.hexdigest(token))"
     assert_includes CONTROLLER_TT, stamped,
-      "the stamped controller template must resolve via #{stamped}"
+      "the stamped controller template must resolve via the digest column: #{stamped}"
     assert_includes USAGE, stamped,
-      "USAGE.md must resolve the bearer via the same #{stamped} the template ships"
+      "USAGE.md must resolve the bearer via the same digest lookup #{stamped} the template ships"
+  end
+
+  # spec 0013 R1 (SEC-01): the stamped bearer example COMMENT parses the header with the
+  # anchored scheme regex, not the global `.remove("Bearer ")` gsub.
+  def test_controller_template_bearer_comment_uses_anchored_parse
+    assert_includes CONTROLLER_TT, '[/\ABearer (.+)\z/, 1]',
+      "the bearer example must parse with the anchored regex [/\\ABearer (.+)\\z/, 1]"
+    refute_includes CONTROLLER_TT, '.remove("Bearer ',
+      "the bearer example must not strip the scheme with a global .remove(\"Bearer \")"
+  end
+
+  # spec 0013 R1 (SEC-01): the stamped bearer example COMMENT resolves via the digest
+  # column, never a raw `find_by(api_token: token)` on the raw token.
+  def test_controller_template_bearer_comment_uses_digest_lookup
+    assert_includes CONTROLLER_TT,
+      "find_by(api_token_digest: Digest::SHA256.hexdigest(token))",
+      "the bearer example must resolve via the api_token_digest column"
+    refute_match(/find_by\(api_token:/, CONTROLLER_TT,
+      "the bearer example must not do a raw find_by(api_token: token) on the raw token")
+  end
+
+  # spec 0013 R1 (SEC-01): README's getting-started auth snippet teaches the same secure
+  # recipe — anchored parse + digest lookup, no `.remove("Bearer ")`, no raw
+  # `find_by(api_token: token)`.
+  def test_readme_auth_snippet_is_the_secure_recipe
+    assert_includes README, '[/\ABearer (.+)\z/, 1]',
+      "README must parse the bearer with the anchored regex"
+    assert_includes README, "api_token_digest",
+      "README must resolve via the api_token_digest column"
+    refute_includes README, '.remove("Bearer ',
+      "README must not strip the scheme with .remove(\"Bearer \")"
+    refute_match(/find_by\(api_token:/, README,
+      "README must not do a raw find_by(api_token: token)")
+  end
+
+  # spec 0013 R1 (SEC-01): USAGE teaches the digest-at-rest column (api_token_digest, not
+  # a raw api_token column) and the anchored parse, with no forbidden forms remaining.
+  def test_usage_teaches_digest_at_rest_and_anchored_parse
+    assert_includes USAGE, "api_token_digest",
+      "USAGE must teach the api_token_digest column"
+    assert_includes USAGE, '[/\ABearer (.+)\z/, 1]',
+      "USAGE must parse the bearer with the anchored regex"
+    refute_includes USAGE, '.remove("Bearer ',
+      "USAGE must not strip the scheme with .remove(\"Bearer \")"
+    refute_match(/find_by\(api_token:\s/, USAGE,
+      "USAGE must not do a raw find_by(api_token: token) on the raw token")
+  end
+
+  # spec 0013 R1 (SEC-01): the raw token is treated like a password — the token-generation
+  # step tells the operator never to log it.
+  def test_usage_labels_raw_token_as_a_password
+    assert_match(/treat (it )?like a password.*never log/im, USAGE,
+      "USAGE must tell the operator to treat the raw token like a password and never log it")
+  end
+
+  # spec 0013 R1 (SEC-01): any plaintext-token demo retained for teaching is labeled
+  # "demo only — do not ship". The taught path stores no plaintext token, so no
+  # raw-column demo shape may appear UNLABELED in README or USAGE.
+  def test_any_plaintext_demo_is_labeled_do_not_ship
+    [["USAGE.md", USAGE], ["README.md", README]].each do |name, doc|
+      # The plaintext-demo shape is a raw `api_token:` store/compare (not the digest column).
+      has_plaintext_demo = doc.match?(/find_by\(api_token:|:api_token,\s|api_token:\s*token/)
+      if has_plaintext_demo
+        assert_match(/demo only.*do not ship/im, doc,
+          "#{name}: any retained plaintext-token demo must be labeled 'demo only — do not ship'")
+      else
+        refute has_plaintext_demo,
+          "#{name}: teaches only the digest-at-rest form — no unlabeled plaintext-token demo"
+      end
+    end
   end
 
   # spec 0011 R8: the §1a hardening lines taught in USAGE.md match the stamped

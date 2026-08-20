@@ -249,6 +249,56 @@ class McpRequestFlowTest < Minitest::Test
     assert_includes response.body, "Invalid Host header"
   end
 
+  # ---- spec 0013 R3 (SEC-03): empty-config.hosts must not 403 a real request -------
+
+  # spec 0013 R3 (SEC-03): with `config.hosts` at its PRODUCTION DEFAULT — EMPTY of String
+  # hosts, as a standard production app actually ships — the stamped controller sets
+  # `dns_rebinding_protection: config.hosts.grep(String).any?` to false, so the SDK Host
+  # guard is OFF and a real request is NOT 403'd. This is the day-one-outage case the
+  # populated fixture masked: without the fix, empty config.hosts would fall back to
+  # loopback-only and 403 every production request "Invalid Host header". The fixture must
+  # NOT add the host here (SEC-03: test the stamped default at its production default, not a
+  # test-populated value).
+  def test_empty_config_hosts_does_not_403_a_real_request
+    TestMcpController.resolver = ->(_req) { ALICE }
+
+    FixtureApp.with_empty_config_hosts do
+      assert_empty Rails.application.config.hosts.grep(String),
+        "the empty-config case must run with NO String hosts — the production default"
+
+      response = post_mcp(
+        "tools/call",
+        {name: "example_read_only", arguments: {subject: "empty-hosts"}},
+        host: FixtureApp::PRODUCTION_HOST
+      )
+
+      refute_equal 403, response.status,
+        "empty config.hosts must not 403 a real request — the guard is off, not loopback-only"
+      refute_includes response.body, "Invalid Host header",
+        "no Host-guard rejection when config.hosts is empty (guard off)"
+      assert_equal 200, response.status,
+        "the request must go through end to end with the guard off"
+    end
+  end
+
+  # spec 0013 R3 (SEC-03): the guard flips back ON once config.hosts holds a String host
+  # (`.any?` is true) — a foreign Host is then rejected AND the listed Host is accepted.
+  # This is the populated counterpart to the empty-config case: it proves the fix ties the
+  # guard to config.hosts rather than disabling it outright. The fixture seeds
+  # PRODUCTION_HOST in boot, so this runs at the populated default.
+  def test_populated_config_hosts_reenables_the_guard_rejecting_a_foreign_host
+    assert Rails.application.config.hosts.grep(String).any?,
+      "the populated case must run with config.hosts holding a String host (guard on)"
+    TestMcpController.resolver = ->(_req) { ALICE }
+
+    foreign = post_mcp("tools/call", {name: "example_read_only", arguments: {subject: "z"}}, host: "evil.example.com")
+    assert_equal 403, foreign.status, "with hosts populated the guard is on — a foreign Host is 403'd"
+    assert_includes foreign.body, "Invalid Host header"
+
+    listed = post_mcp("tools/call", {name: "example_read_only", arguments: {subject: "z"}}, host: FixtureApp::PRODUCTION_HOST)
+    assert_equal 200, listed.status, "the listed production Host is accepted with the guard on"
+  end
+
   # ---- R4 reload-safe by construction; R3 collision caught by mcp -------------------
 
   # A fresh reload stand-in: a NEW class object with the same class name and tool_name — a

@@ -13,7 +13,7 @@ class ExampleReadOnlyToolTest < ActiveSupport::TestCase
   test "denies the call when authorization does not pass" do
     tool = ExampleReadOnlyTool.new
     assert_raises(RailsMcp::NotAuthorized) do
-      tool.send(:invoke, user: nil, args: {subject: "x"})
+      tool.__send__(:invoke, user: nil, args: {subject: "x"})
     end
   end
 
@@ -31,7 +31,7 @@ class ExampleReadOnlyToolTest < ActiveSupport::TestCase
     # Authorize is denied by default, so this raises — the audit event still fires
     # exactly once (recording the error). Wire a permitting authorize to see result:.
     begin
-      tool.send(:invoke, user: acting_user, args: {subject: "x"})
+      tool.__send__(:invoke, user: acting_user, args: {subject: "x"})
     rescue RailsMcp::NotAuthorized
       # expected until you implement authorize
     end

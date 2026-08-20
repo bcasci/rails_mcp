@@ -44,6 +44,23 @@ module FixtureApp
   PRODUCTION_HOST = "boswell.fly.dev"
 
   class << self
+    # Run the block with `config.hosts` at its production DEFAULT — EMPTY of String hosts
+    # (SEC-03 / spec 0013 R3). A standard production Rails app does NOT auto-populate
+    # `config.hosts` (only development does), so the stamped controller's
+    # `config.hosts.grep(String)` is empty there. The fixture normally SEEDS PRODUCTION_HOST
+    # in `boot_rails!` (so the populated-guard path is exercised); this helper strips the
+    # String hosts for the duration of the block so the empty-config default the shipped app
+    # actually has can be exercised, then restores them. Non-String entries (Regexp/IPAddr,
+    # which the guard cannot compare) are left untouched. Restores on any exit.
+    def with_empty_config_hosts
+      hosts = Rails.application.config.hosts
+      removed = hosts.grep(String)
+      removed.each { |h| hosts.delete(h) }
+      yield
+    ensure
+      removed.each { |h| hosts << h unless hosts.include?(h) }
+    end
+
     # Read a template's rendered source. The templates carry no ERB, so the file content
     # IS the rendered output; a test asserts the loaded constant's source equals this.
     def template_source(path)

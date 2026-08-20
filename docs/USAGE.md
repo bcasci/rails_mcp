@@ -178,7 +178,8 @@ a bearer token or credential.
 
 This is the copy-paste path from a stamped install to a real MCP tool result over HTTP. It wires
 the **static Bearer** example the generator ships commented in `mcp_controller.rb` — the
-`User.find_by(api_token: token)` line — and then runs the JSON-RPC handshake with `curl`.
+`find_by(api_token_digest: Digest::SHA256.hexdigest(token))` lookup — and then runs the
+JSON-RPC handshake with `curl`.
 Everything here is **host-app** setup (a migration, a seed, seam overrides); the gem
 ships no auth or policy (ADR-0004), only the seams these steps fill.
 
@@ -187,29 +188,33 @@ ships no auth or policy (ADR-0004), only the seams these steps fill.
 > custom header. Claude's hosted remote-MCP connector expects **OAuth 2.1**, so a static Bearer
 > from that surface is not guaranteed to connect; use `curl`/an inspector to prove the endpoint.
 
-### 1. Add the `api_token` column the bearer example reads
+### 1. Add the `api_token_digest` column the bearer example reads
 
-The stamped bearer path resolves the user from an `api_token` column on `users`. Add it:
+The stamped bearer path resolves the user by the **SHA-256 digest** of the token, stored
+in an `api_token_digest` column on `users` — never the raw token. Storing the digest (not
+the secret) is the constant-time-safe form: an equality match on the digest column never
+compares the raw token, and a leaked database row never yields a usable token. Add the
+column:
 
 ```console
-$ rails g migration AddApiTokenToUsers api_token:string:index
+$ rails g migration AddApiTokenDigestToUsers api_token_digest:string:index
 $ rails db:migrate
 ```
 
 The generated migration:
 
 ```ruby
-class AddApiTokenToUsers < ActiveRecord::Migration[7.1]
+class AddApiTokenDigestToUsers < ActiveRecord::Migration[7.1]
   def change
-    add_column :users, :api_token, :string
-    add_index :users, :api_token
+    add_column :users, :api_token_digest, :string
+    add_index :users, :api_token_digest
   end
 end
 ```
 
 ### 2. Seed a token
 
-The stamped example resolves the acting user via `User.find_by(api_token: token)` — any user
+The stamped example resolves the acting user by the SHA-256 digest of the token — any user
 with a token can call. The gem takes no position on *who* may call; if you want to restrict it,
 add a scope that fits your app and resolve through it (an example `staff` scope):
 
@@ -220,16 +225,19 @@ class User < ApplicationRecord
 end
 ```
 
-Seed a user with a random token and print it (you paste it into the `curl` calls below):
+Seed a user with a random token, store only its digest, and print the **raw** token once
+(you paste it into the `curl` calls below):
 
 ```ruby
 # rails runner, a seed, or the console:
-user = User.first || User.create!(email: "operator@example.com")
-user.update!(api_token: SecureRandom.hex(24))
-puts user.api_token   # copy this — it is your Bearer token
+user  = User.first || User.create!(email: "operator@example.com")
+token = SecureRandom.hex(24)                              # the raw token — shown once
+user.update!(api_token_digest: Digest::SHA256.hexdigest(token))  # store the DIGEST, not the token
+puts token   # copy this — it is your Bearer token; treat it like a password, never log it
 ```
 
-`SecureRandom.hex(24)` is a 48-char random token; treat it like a password.
+`SecureRandom.hex(24)` is a 48-char random token. Treat it like a password — never log it.
+The database stores only its SHA-256 digest, so a leaked row never yields a usable token.
 
 ### 3. Wire the two fail-closed seams to permit that user
 
@@ -241,8 +249,10 @@ denied. Wire them:
 
 ```ruby
 def authenticate_acting_user!
-  token = request.headers["Authorization"].to_s.remove("Bearer ")
-  user = User.find_by(api_token: token)
+  # Anchored scheme parse — requires the `Bearer ` prefix; never a global `.remove`.
+  token = request.headers["Authorization"].to_s[/\ABearer (.+)\z/, 1]
+  # Digest at rest: look up by the SHA-256 digest, never a raw `api_token` column.
+  user = User.find_by(api_token_digest: Digest::SHA256.hexdigest(token)) if token
   raise RailsMcp::NotAuthorized, "no acting user" if user.nil?
   user
 end
@@ -381,7 +391,11 @@ class Households::LookupTool < ApplicationMcpTool
   read_only!
 
   def perform(household_id:)
-    household = Household.find(household_id)
+    # Resolve with find_by and raise a GENERIC message — never Model.find(id).
+    # Any message you raise surfaces VERBATIM to the AI client (see "errors" below),
+    # and find's RecordNotFound would leak the looked-up id into that message.
+    household = Household.find_by(id: household_id)
+    raise RailsMcp::NotAuthorized, "not found" if household.nil?
     text_response("Household #{household.id}: #{household.name}")
   end
 end
@@ -408,6 +422,13 @@ arg :name, :type, required: false, description: nil
   and imposes no read/write policy (ADR-0012).
 - `text_response("ok")` builds a text content result equal to `"ok"`.
 - If `perform` raises, the error is surfaced as a tool error and the audit event records it.
+- **The raised message reaches the AI client VERBATIM** (SEC-02) — the mcp gem sends
+  `Internal error calling tool <name>: <e.message>` straight to the caller. So **raise
+  generic messages** and resolve records with `find_by` + your own generic error, **never
+  `Model.find(id)`** (its `RecordNotFound` leaks the looked-up id into that message). Never
+  interpolate a record id, SQL, or an internal class name into a message you raise. Keep
+  developer detail off the message — the audit `error:` payload carries the whole exception
+  (e.g. `RailsMcp::NotAuthorized#detail`) for your logs.
 
 ### Annotations (R5)
 

@@ -88,6 +88,26 @@ def authorize(user:, args:, tool:, **)
 end
 ```
 
+### The error surface is VERBATIM to the AI client (SEC-02)
+
+**Any message you raise from `authorize` or `perform` is surfaced VERBATIM to the AI
+client.** The mcp gem wraps a tool raise as `Internal error calling tool <name>:
+<e.message>` (`mcp` `server.rb:798`) and sends that string straight to the caller. Treat
+every raised message as attacker-readable output:
+
+- **Raise generic messages.** Never interpolate a record id, a SQL fragment, an internal
+  class name, or a stack detail into a message you raise from `authorize`/`perform`.
+- **Put developer detail on the exception, not the message.** The gem's default
+  `NotAuthorized` raises the terse client string `"not authorized"` and carries the
+  developer diagnosis (which class denied, that the seam is unimplemented) on
+  `RailsMcp::NotAuthorized#detail`. The audit event's `error:` payload holds the whole
+  exception object, so your subscriber can log `error.detail` while the client sees only
+  `"not authorized"`. Follow the same split in your own errors: terse message, detail
+  elsewhere.
+- **Model `perform` the same way** — see the `perform` recipe in `docs/USAGE.md`: resolve
+  with `find_by` and raise your own generic error, never `Model.find(id)` (whose
+  `RecordNotFound` leaks the looked-up id verbatim).
+
 ---
 
 ## Seam 2 — the `invoke.rails_mcp` notification (R4, audit)
@@ -116,7 +136,8 @@ audit row.
   the payload (`lib/rails_mcp/instrumentation.rb`).
 
 - **No credentials.** The payload and every gem log line exclude the bearer token and any
-  credential — a standing rule guarded by CI grep (ADR-0004, R4).
+  credential — a standing rule enforced by the `rake adr:check` credential grep, run by both
+  `.githooks/pre-commit` and the CI `default` task (ADR-0004, R4).
 
 Subscribe app-side (typically in `config/initializers/rails_mcp.rb`):
 

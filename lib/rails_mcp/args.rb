@@ -116,7 +116,7 @@ module RailsMcp
     def arg_definitions
       @arg_definitions ||=
         if superclass.respond_to?(:arg_definitions, true)
-          superclass.send(:arg_definitions).dup
+          superclass.__send__(:arg_definitions).dup
         else
           {}
         end

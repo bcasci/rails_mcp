@@ -10,7 +10,23 @@ module RailsMcp
   # raises this (fail-closed, R3); app overrides raise it (or their own error) on a
   # failed policy check. The invoke pipeline lets it propagate after emitting the one
   # audit event, so the SDK surfaces an authorization error and `perform` never ran.
-  class NotAuthorized < Error; end
+  #
+  # mcp surfaces a raised message VERBATIM to the AI client (server.rb:798,
+  # `Internal error calling tool <name>: <e.message>`), so the client-facing
+  # `#message` stays terse ("not authorized") and leaks nothing (SEC-02). Any
+  # developer diagnosis — which class denied, that the seam is unimplemented —
+  # rides on `#detail`, which never reaches the client but is retained on the
+  # exception object the audit event carries in its `error:` payload.
+  class NotAuthorized < Error
+    # Developer-facing detail for the audit log (not the client message). `nil`
+    # when the raiser supplied only a message.
+    attr_reader :detail
+
+    def initialize(message = nil, detail: nil)
+      super(message)
+      @detail = detail
+    end
+  end
 
   # The base class every app tool subclasses, directly or via the generated
   # `ApplicationMcpTool` (SPEC R1–R5). It is an `MCP::Tool`, so the official gem owns
@@ -40,7 +56,7 @@ module RailsMcp
         user = user_from(server_context)
         args = declared_arguments(arguments)
 
-        new.send(:invoke, user: user, args: args)
+        new.__send__(:invoke, user: user, args: args)
       end
 
       # Build a text tool result. Convenience so a class-level `call` override or a test
@@ -85,10 +101,17 @@ module RailsMcp
     # unoverridden `authorize` denies. Apps override this in `ApplicationMcpTool` to run
     # their own check (e.g. Pundit) and raise/deny on failure. Accepts `**` so app
     # overrides stay forward-compatible with future context keys.
+    #
+    # The raised message is the terse client string "not authorized" (mcp surfaces it
+    # VERBATIM to the AI client, SEC-02). The developer detail — the denying class and
+    # that the seam is unimplemented — rides on `NotAuthorized#detail`, which the audit
+    # event carries in its `error:` payload but the client never sees.
     def authorize(user:, args:, tool:)
-      raise NotAuthorized,
-        "authorize is not implemented; #{self.class.name || "this tool"} denies by default. " \
-        "Override authorize in ApplicationMcpTool to permit calls."
+      raise NotAuthorized.new(
+        "not authorized",
+        detail: "authorize is not implemented; #{self.class.name || "this tool"} denies by default. " \
+          "Override authorize in ApplicationMcpTool to permit calls."
+      )
     end
 
     # The tool's behavior (R2). Subclasses override with the declared args as keywords

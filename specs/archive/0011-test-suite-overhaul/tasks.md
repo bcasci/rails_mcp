@@ -1,5 +1,7 @@
 # TASKS — test suite overhaul (correctness, conventions, simplification)
 
+Completed Thu Aug 20 00:02:23 EDT 2026 at commit c810449
+
 Task breakdown for spec 0011. Each task owns a DISJOINT set of files. Builds on shipped specs
 0001–0009 (archived). References like `R1` point to this spec's `spec.md`.
 
@@ -18,7 +20,7 @@ either file.
 
 ## Layer 0 — Independent test edits (parallel, disjoint files)
 
-### T1 — Integration flow: autoload, verbatim example, identity proof, bearer-leak, rename
+### T1 — Integration flow: autoload, verbatim example, identity proof, bearer-leak, rename — DONE
 **Owns:**
 - `test/integration/real_world_hardening_test.rb` → renamed to
   `test/integration/mcp_request_flow_test.rb` (class `RealWorldHardeningTest` → `McpRequestFlowTest`)
@@ -46,7 +48,7 @@ example tool is verbatim + guarded + driven with `:subject`; the identity proof 
 verbatim controller; bearer never leaks; `controller_end_to_end_test.rb` is gone.
 **Tag:** `autonomous`.
 
-### T2 — Unit-test de-duplication (tool_test, annotations_test)
+### T2 — Unit-test de-duplication (tool_test, annotations_test) — DONE
 **Owns:**
 - `test/rails_mcp/tool_test.rb`
 - `test/rails_mcp/annotations_test.rb`
@@ -63,7 +65,7 @@ verbatim controller; bearer never leaks; `controller_end_to_end_test.rb` is gone
 `readOnlyHint: true` test in `annotations_test.rb`; both files green.
 **Tag:** `autonomous`.
 
-### T3 — Doc-prose deletion + drift guard into generator suite
+### T3 — Doc-prose deletion + drift guard into generator suite — DONE
 **Owns:**
 - `test/docs/getting_started_docs_test.rb` (DELETE)
 - `test/docs/neutral_conduit_docs_test.rb` (DELETE)
@@ -86,7 +88,7 @@ generator suite; no runtime coverage dropped.
 
 ## Layer 1 — Relocation into new/shared files (depends on Layer 0 for tool_test)
 
-### T4 — Relocate opt_out_seams; single adr_constraints_test; drop subsumed check
+### T4 — Relocate opt_out_seams; single adr_constraints_test; drop subsumed check — DONE
 **Owns:**
 - `test/rails_mcp/opt_out_seams_test.rb` (DELETE)
 - `test/adr_constraints_test.rb` (NEW)
@@ -109,7 +111,7 @@ coverage preserved.
 
 ## Layer 2 — CI isolation + gate
 
-### T5 — Per-file isolation CI step + full gate
+### T5 — Per-file isolation CI step + full gate — DONE
 **Owns:**
 - `.github/workflows/*.yml` (the existing test workflow — add a per-file isolation step)
 

@@ -172,6 +172,61 @@ class RailsMcp::ToolTest < Minitest::Test
     assert_instance_of RailsMcp::NotAuthorized, @events.first.payload[:error]
   end
 
+  # --- R2: sanitized client-facing denial message + preserved developer detail ---
+
+  # R2 (SEC-02): the default `authorize` denial raises the terse client string
+  # `"not authorized"` — no `self.class.name`, no "override … in ApplicationMcpTool"
+  # in the message. mcp surfaces the raised message VERBATIM to the AI client, so it
+  # must leak nothing.
+  def test_default_authorize_raised_message_is_exactly_not_authorized
+    klass = Class.new(RailsMcp::Tool) { tool_name "denied" }
+
+    error = assert_raises(RailsMcp::NotAuthorized) do
+      klass.call(server_context: context)
+    end
+
+    assert_equal "not authorized", error.message
+  end
+
+  # R2 (SEC-02): the developer detail — which class denied, that the seam is
+  # unimplemented — is carried on the exception's `#detail` attribute, NOT the
+  # message, so operators keep full diagnosis while the client sees only the terse
+  # message.
+  def test_default_authorize_carries_developer_detail_off_the_message
+    klass = Class.new(RailsMcp::Tool) { tool_name "denied" }
+
+    error = assert_raises(RailsMcp::NotAuthorized) do
+      klass.call(server_context: context)
+    end
+
+    assert_match(/authorize is not implemented/, error.detail)
+  end
+
+  # R2 (SEC-02): the audit event's `error:` payload retains the developer detail
+  # (via the exception object's `#detail`), so the app's audit log keeps full
+  # diagnosis even though the raised message is terse.
+  def test_denial_audit_event_error_retains_developer_detail
+    klass = Class.new(RailsMcp::Tool) { tool_name "denied" }
+
+    assert_raises(RailsMcp::NotAuthorized) do
+      klass.call(server_context: context)
+    end
+
+    error = @events.first.payload[:error]
+    assert_equal "not authorized", error.message
+    assert_match(/authorize is not implemented/, error.detail)
+  end
+
+  # R2 (SEC-02): NotAuthorized raised without a detail still exposes `#detail`
+  # (nil) so subscribers can read the attribute uniformly — the app override that
+  # raises `NotAuthorized, "no acting user"` is a supported form.
+  def test_not_authorized_detail_defaults_to_nil
+    error = RailsMcp::NotAuthorized.new("no acting user")
+
+    assert_equal "no acting user", error.message
+    assert_nil error.detail
+  end
+
   # --- RailsMcp::Tool boundary: the gem's guarantees are scoped to its own tools ---
   #
   # R9 (ADR-0004, ADR-0013): the authorize/audit guarantees live in `RailsMcp::Tool.call`.

@@ -23,19 +23,11 @@ else
   echo "[pre-commit] standardrb: no staged .rb files, skipping"
 fi
 
-# ADR-constraint greps (ADR-0001, ADR-0004): no hand-rolled JSON-RPC, no
-# arbitrary-Ruby/console execution path, no debugger left in lib/.
-echo "[pre-commit] ADR constraints: scanning lib/..."
-if [ -d lib ]; then
-  if grep -RnE 'binding\.(pry|irb)' lib/ 2>/dev/null; then
-    echo "[pre-commit] BLOCKED: debugger (binding.pry/irb) left in lib/."
-    exit 1
-  fi
-  if grep -RnE '\b(instance_eval|class_eval|Kernel\.eval|[^.]\beval)\(' lib/ 2>/dev/null; then
-    echo "[pre-commit] BLOCKED: arbitrary-Ruby eval in lib/ (ADR-0004: allow-list only, no console)."
-    exit 1
-  fi
-fi
+# ADR / credential / dynamic-dispatch constraint gate (SEC-04, SEC-05). The greps
+# now live in the single shared `rake adr:check` task so the hook and CI run the
+# identical check — no grep duplicated between them.
+echo "[pre-commit] ADR constraints: running rake adr:check..."
+bundle exec rake adr:check
 echo "[pre-commit] ADR constraints: clean"
 
 # Minitest suite — the regression gate.

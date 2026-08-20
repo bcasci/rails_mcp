@@ -53,7 +53,7 @@ user may do. See
 From install to a proven `tools/call`. v1 auth is a **static `Authorization: Bearer` token
 over Streamable HTTP** — prove it with `curl` or an MCP inspector that sets a custom header.
 Claude's hosted remote-MCP connector expects OAuth 2.1, so a static Bearer is not guaranteed
-to connect from that surface. Full recipe (the `api_token` migration, the user seed, the
+to connect from that surface. Full recipe (the `api_token_digest` migration, the user seed, the
 resolving scope) is in [`docs/USAGE.md`](docs/USAGE.md#2a-make-your-first-call-install--a-proven-toolscall).
 
 1. **Install** — add the gem (a git line until it is published) and generate:
@@ -75,8 +75,11 @@ resolving scope) is in [`docs/USAGE.md`](docs/USAGE.md#2a-make-your-first-call-i
 
    ```ruby
    def authenticate_acting_user!
-     token = request.headers["Authorization"].to_s.remove("Bearer ")
-     User.find_by(api_token: token) || raise(RailsMcp::NotAuthorized)
+     # Anchored scheme parse — requires the `Bearer ` prefix; never a global strip.
+     token = request.headers["Authorization"].to_s[/\ABearer (.+)\z/, 1]
+     # Digest at rest: look up by SHA-256 digest, never a raw `api_token` column.
+     user = User.find_by(api_token_digest: Digest::SHA256.hexdigest(token)) if token
+     user || raise(RailsMcp::NotAuthorized)
    end
    ```
 

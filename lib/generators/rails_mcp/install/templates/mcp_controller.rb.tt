@@ -58,13 +58,27 @@ class McpController < ApplicationController
     # app's host allow-list, so a real production Host (e.g. "boswell.fly.dev", set in
     # config.hosts) is not rejected with `403 Forbidden: Invalid Host header`. We pass
     # only the String entries of config.hosts (it may also hold Regexp/IPAddr, which the
-    # guard cannot compare). Add `allowed_origins:` / `dns_rebinding_protection:` here
-    # for your deploy. `handle_request` takes this controller's request and returns a
-    # Rack response triple.
+    # guard cannot compare).
+    #
+    # WARNING — the DNS-rebinding guard is OFF until config.hosts is populated.
+    # `config.hosts` is auto-populated only in DEVELOPMENT; a standard PRODUCTION app
+    # leaves it EMPTY. If we hard-enabled the guard, an empty config.hosts would fall
+    # back to loopback-only and 403 EVERY real request ("Invalid Host header") on day one.
+    # So we tie `dns_rebinding_protection:` to whether config.hosts actually holds String
+    # hosts: the guard is ON once you populate config.hosts, and OFF (fails open on the
+    # Host/Origin check only) while it is empty. Authentication and authorization remain
+    # fail-closed regardless. TO RE-ENABLE THE GUARD: add your production host to
+    # config.hosts (e.g. `config.hosts << "your-app.example.com"`), OR validate the Host
+    # header at your proxy, OR force it on here with `dns_rebinding_protection: true`
+    # (which reinstates the loopback-only 403 until config.hosts is populated).
+    #
+    # Add `allowed_origins:` here for your deploy. `handle_request` takes this
+    # controller's request and returns a Rack response triple.
     transport = MCP::Server::Transports::StreamableHTTPTransport.new(
       server,
       stateless: true,
-      allowed_hosts: Rails.application.config.hosts.grep(String)
+      allowed_hosts: Rails.application.config.hosts.grep(String),
+      dns_rebinding_protection: Rails.application.config.hosts.grep(String).any?
     )
 
     # === OPTIONAL: REQUEST-SCOPED CONTEXT (edit for your app) ================
@@ -103,14 +117,23 @@ class McpController < ApplicationController
   #     current_user                  # the resolved acting user
   #   end
   #
-  # or a bearer token:
+  # or a bearer token. Store the token DIGESTED at rest (never the raw token), and
+  # parse the header with an ANCHORED scheme regex. A global substring strip of the
+  # scheme prefix neither requires the `Bearer ` scheme nor survives a token that itself
+  # contains that substring — use the anchored regex below instead. Add an
+  # `api_token_digest` column and look up by the SHA-256 digest; the raw token is shown
+  # to the operator once and treated like a password (never logged):
   #
   #   def authenticate_acting_user!
-  #     token = request.headers["Authorization"].to_s.remove("Bearer ")
-  #     user = User.find_by(api_token: token)
+  #     token = request.headers["Authorization"].to_s[/\ABearer (.+)\z/, 1]
+  #     user = User.find_by(api_token_digest: Digest::SHA256.hexdigest(token)) if token
   #     raise RailsMcp::NotAuthorized, "no acting user" if user.nil?
   #     user
   #   end
+  #
+  # The digest lookup is the constant-time-safe form: the app stores a SHA-256 digest,
+  # not the raw secret, so an equality match on the digest column never compares the raw
+  # token. Do NOT store or compare a raw `api_token`.
   def authenticate_acting_user!
     raise RailsMcp::NotAuthorized,
       "McpController#authenticate_acting_user! is not implemented — the /mcp " \

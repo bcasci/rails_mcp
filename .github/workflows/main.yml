@@ -54,3 +54,25 @@ jobs:
             fi
           done < <(find test -name '*_test.rb' | sort)
           exit $fail
+
+  # Prove the packaged gem (the spec.files allowlist) builds, installs off-bundle,
+  # and require-loads. The pure-Ruby analog of litestream's build (package job,
+  # gem-install.yml:32) + install/run (vanilla-install, :50-51); require replaces
+  # litestream's binary smoke. Single Ruby / single Gemfile because the .gem is one
+  # matrix-independent artifact (spec R3), so it is not a leg of the build matrix.
+  gem-smoke:
+    runs-on: ubuntu-latest
+    name: Gem build + install + load smoke
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+      - name: Build, install off-bundle, and require the packaged gem
+        run: |
+          gem build rails_mcp.gemspec
+          gem install --install-dir "$RUNNER_TEMP/gems" ./rails_mcp-*.gem
+          GEM_HOME="$RUNNER_TEMP/gems" GEM_PATH="$RUNNER_TEMP/gems" ruby -e 'require "rails_mcp"'

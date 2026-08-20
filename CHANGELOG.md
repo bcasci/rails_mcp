@@ -1,5 +1,39 @@
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-20
+
+Release-readiness hardening. No public API change (the `authorize` signature, the
+`invoke.rails_mcp` payload, the args/annotations DSL, and the generator interface are all
+unchanged); everything here is a fix, a security/packaging improvement, or CI/docs.
+
+### Fixed
+
+- Tools that set a raw `input_schema` (opting out of the `arg` DSL) no longer drop every
+  argument before `perform` — the allow-list is the effective input schema, not the `arg`
+  list (ARCH-02).
+- The gem reads no `mcp` private internals: the "explicit schema" distinction is tracked in
+  the gem's own state, guarded by a public-contract drift test (ARCH-01, ADR-0015).
+
+### Security
+
+- The generated bearer-auth recipe stores a token digest and compares in constant time
+  instead of storing/looking up a plaintext token (SEC-01).
+- The ADR / credential / dynamic-dispatch constraint greps run in CI via `rake adr:check`,
+  not only the local pre-commit hook (SEC-04, SEC-05).
+
+### Changed
+
+- Gemspec `spec.files` is an explicit allowlist — the built `.gem` ships only runtime files
+  (`lib/`, README, CHANGELOG, LICENSE), not the development apparatus (PKG-01).
+- Corrected doc claims to match shipped behavior: the stateless first-call (no `initialize`
+  handshake), the audit-event scope, and stale ADR statuses (spec 0012).
+
+### Added
+
+- CI matrix: Ruby 3.2 / 3.3 / 3.4 × Rails 7.1 / 7.2 / 8.0, each test file run in isolation,
+  a packaged-gem build → install → `require` smoke, and run-cancelling concurrency
+  (specs 0010, 0016).
+
 ## [0.2.0] - 2026-08-19
 
 ### Added

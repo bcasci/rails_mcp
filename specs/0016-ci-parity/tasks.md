@@ -61,7 +61,9 @@ litestream `gem-install.yml:2-4`.
 **Depends on:** T1 (same file; add the job after the concurrency block lands to avoid a conflict).
 **Acceptance (R2, R3, R5):** `gem-smoke` exists as a standalone single-Ruby job; it builds, installs
 the built `.gem` off-bundle, and `require "rails_mcp"` from the installed gem; it is not a matrix
-leg; YAML parses. Rationale is litestream `gem-install.yml:39-51`.
+leg; YAML parses. Rationale: litestream's build+install+load shape — build in its `package` job
+(`gem-install.yml:32`), install+run in `vanilla-install` (`:50-51`) — collapsed here into one job
+(pure-Ruby single gem), with `require` as the pure-Ruby substitute for litestream's binary smoke (`:51`).
 **Tag:** `autonomous`.
 
 ---

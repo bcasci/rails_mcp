@@ -25,11 +25,18 @@ What litestream still does that rails_mcp does **not**:
    `cancel-in-progress: true` so a new push to a branch/PR cancels the in-flight run
    (`litestream-ruby/.github/workflows/gem-install.yml:2-4`). rails_mcp's `main.yml` has no
    `concurrency` block, so stacked pushes run to completion and waste runner minutes.
-2. **Build the gem and smoke-install it.** litestream builds the packaged `.gem`, `gem install`s
-   it, and runs the installed artifact to prove the package is loadable/usable
-   (`litestream-ruby/.github/workflows/gem-install.yml:39-51`, `:50` `gem install pkg/*.gem`,
-   `:64-67` install-then-run). rails_mcp's CI only runs `bundle exec rake` against the working
-   tree; it never proves the built package (the `spec.files` allowlist added in spec 0010) actually
+2. **Build the gem and smoke-install it.** litestream proves the packaged gem installs across two
+   coupled jobs: a `package` job builds the platform `.gem` (`gem-install.yml:32`,
+   `bundle exec rake gem:<platform>`), and a `vanilla-install` job then `needs:` it, downloads the
+   artifact, `gem install`s it (`gem-install.yml:50`), and runs the installed artifact
+   (`gem-install.yml:51`, a **binary-execution** smoke — `litestream 2>&1 | fgrep ...`). rails_mcp
+   takes only the **transferable shape — build + install + load** — and realizes it differently:
+   because it is a single pure-Ruby `.gem` with no cross-platform artifact, it **collapses build +
+   install + load into one job** (no `needs:`/artifact handoff), and, since litestream has **no**
+   `require`-based load smoke (it load-checks by running the Go binary, `gem-install.yml:51`), the
+   `require "rails_mcp"` load-check is the **pure-Ruby substitute** for that binary smoke — not a
+   line-for-line port. rails_mcp's CI today only runs `bundle exec rake` against the working tree;
+   it never proves the built package (the `spec.files` allowlist added in spec 0010) actually
    installs and `require`s.
 
 ### Explicitly excluded from parity (litestream practice rails_mcp must NOT copy)
@@ -101,8 +108,10 @@ locatable for `gem install`.
   `cancel-in-progress: true`.
 - **Given** two pushes to the same ref in quick succession, **when** the second starts, **then** the
   first in-flight run is cancelled (the concurrency group serializes per ref).
-- **Rationale:** litestream `.github/workflows/gem-install.yml:2-4` sets exactly this group +
-  `cancel-in-progress: true`; rails_mcp's `main.yml` currently has no `concurrency` block.
+- **Rationale:** litestream `.github/workflows/gem-install.yml:2-4` sets this group +
+  `cancel-in-progress: true` (litestream quotes the string, `"${{github.workflow}}-${{github.ref}}"`;
+  the `${{ ... }}` whitespace/quoting is GitHub-equivalent, so this is the same group, not a
+  byte-identical copy); rails_mcp's `main.yml` currently has no `concurrency` block.
 
 ### R2 — The built gem installs and loads (build + install smoke)
 
@@ -116,8 +125,12 @@ locatable for `gem install`.
   `spec.files` allowlist, not the repo.
 - **Given** the smoke job, **when** the `require` runs, **then** it exits 0 (the packaged file list
   is sufficient to load `RailsMcp`); a missing runtime file in `spec.files` makes it exit non-zero.
-- **Rationale:** litestream `gem-install.yml:39-51` builds, `gem install pkg/*.gem` (`:50`), then
-  runs the installed artifact (`:51`); rails_mcp never proves its packaged gem installs/loads.
+- **Rationale:** litestream proves a packaged gem installs by building it in a `package` job
+  (`gem-install.yml:32`) and, in a separate `vanilla-install` job, `gem install`ing the downloaded
+  artifact (`:50`) and running it (`:51`, a binary-execution smoke). rails_mcp adopts the
+  build+install+load *shape* in one job (single pure-Ruby gem, no cross-job artifact) and load-checks
+  with `require` as the pure-Ruby substitute for litestream's binary smoke; rails_mcp's CI otherwise
+  never proves its packaged gem installs/loads.
 
 ### R3 — Smoke runs once, single Ruby, off the matrix
 

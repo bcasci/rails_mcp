@@ -1,5 +1,7 @@
 # TASKS — Standards & conventions amendments
 
+Completed Wed Aug 19 23:29:27 EDT 2026 at commit acbb5a8
+
 Task breakdown for spec 0015. Each task owns a DISJOINT document, so T1–T4 are independent and
 parallel; T5 (gate) depends on all four. References like `R1` point to this spec's `spec.md`.
 Every task is `autonomous`.
@@ -15,7 +17,7 @@ already runs.
 
 ## Layer 0 — Amend each standards document (parallel, disjoint files)
 
-### T1 — `docs/conventions.md` amendments
+### T1 — `docs/conventions.md` amendments — DONE
 **Owns:** `docs/conventions.md` (ONLY).
 **Applies:** R1 (STD-01 versioning & deprecation + scope "never a silent break" to >=1.0),
 R2 (STD-02 event-name scoped to lib/, template literal exempt), R3 (PKG-02 Keep a Changelog +
@@ -38,7 +40,7 @@ changed.
 **Depends on:** shipped 0009–0014 model (docs only). Independent of T2/T3/T4.
 **Tag:** `autonomous`.
 
-### T2 — `REVIEW.md` amendments
+### T2 — `REVIEW.md` amendments — DONE
 **Owns:** `REVIEW.md` (ONLY).
 **Applies:** R12 (SEC-02 operationalize the error-leak invariant; SEC-05 enumerate dynamic-dispatch
 forms `constantize`/`const_get`/`public_send`/non-literal `send`/`__send__`; TEST-03 second
@@ -54,7 +56,7 @@ secret at the level asserted. No other file changed.
 **Depends on:** shipped. Independent of T1/T3/T4.
 **Tag:** `autonomous`.
 
-### T3 — `CLAUDE.md` amendments
+### T3 — `CLAUDE.md` amendments — DONE
 **Owns:** `CLAUDE.md` (ONLY).
 **Applies:** R13 (SEC-04 machine-checkable only if a named CI check runs it, hook != CI, extract
 shared checks to a rake task; SEC-05 mirror the enumerated dynamic-dispatch forms; DOC-02
@@ -70,7 +72,7 @@ clause requiring re-status + bidirectional link + a removed-symbol grep test; co
 **Depends on:** shipped. Independent of T1/T2/T4.
 **Tag:** `autonomous`.
 
-### T4 — spec-driven-dev skill `references/testing.md` amendments
+### T4 — spec-driven-dev skill `references/testing.md` amendments — DONE
 **Owns:** `.claude/skills/spec-driven-dev/references/testing.md` (ONLY).
 **Applies:** R14 (STD-04 replace the stale registry references at lines 36/66 with the
 `RegisteredTools.all` allow-list model + reload-safe mandatory test; remove "the registry refuses
@@ -91,7 +93,7 @@ files and doc-prose assertions. No other file changed.
 
 ## Layer 1 — Gate
 
-### T5 — Coverage gate + full suite
+### T5 — Coverage gate + full suite — DONE
 **Owns:** no source files (verification only).
 **Depends on:** T1, T2, T3, T4.
 **Acceptance:**

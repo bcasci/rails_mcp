@@ -16,8 +16,10 @@ module RailsMcp
   #   perform(**declared_args)         # R2 — the tool's behavior, returns a result
   #
   # and wraps every invocation as **authorize -> perform -> notify**, emitting exactly
-  # one `invoke.rails_mcp` audit event per call whether it succeeds, is denied, or
-  # raises (R4). The gem ships no policy: `authorize` denies by default and identity is
+  # one `invoke.rails_mcp` audit event per invocation **that reaches the tool pipeline**
+  # (success, denial, or raise); a `tools/call` the `mcp` gem rejects upstream — schema
+  # validation of a missing/wrong-typed required arg, or an unknown tool — emits no event
+  # (R4). The gem ships no policy: `authorize` denies by default and identity is
   # resolved app-side and handed in via the SDK's server_context (R9, ADR-0004).
   class Tool < MCP::Tool
     extend Args

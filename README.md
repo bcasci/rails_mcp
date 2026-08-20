@@ -84,8 +84,9 @@ resolving scope) is in [`docs/USAGE.md`](docs/USAGE.md#2a-make-your-first-call-i
    ```
 
 3. **Call it** — the generator seeds `ExampleReadOnlyTool` in `RegisteredTools.all`
-   (`app/mcp/registered_tools.rb`), so it is already on the allow-list. Run the handshake
-   against `POST /mcp` (`mcp#handle`) and finish with a `tools/call`:
+   (`app/mcp/registered_tools.rb`), so it is already on the allow-list. The controller is
+   `stateless: true`, so each `POST /mcp` (`mcp#handle`) is self-contained — a lone
+   `tools/call` succeeds without a prior `initialize`:
 
    ```bash
    curl -sS http://localhost:3000/mcp \
@@ -93,7 +94,6 @@ resolving scope) is in [`docs/USAGE.md`](docs/USAGE.md#2a-make-your-first-call-i
      -H "Accept: application/json, text/event-stream" \
      -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"example_read_only","arguments":{"subject":"first call"}}}'
    # => {"result":{"content":[{"type":"text","text":"Looked up: first call"}],"isError":false}}
-   # If this returns a "not initialized" error, send an `initialize` request first (see USAGE §2a).
    ```
 
 ## Usage

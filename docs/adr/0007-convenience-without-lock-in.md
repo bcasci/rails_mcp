@@ -1,6 +1,6 @@
 # ADR-0007 — Convenience without lock-in
 
-Status: Accepted (2026-08-13)
+Status: Accepted (2026-08-13); partially superseded by [ADR-0013](0013-drop-registry-for-app-owned-tool-list.md) (2026-08-19)
 
 ## Context
 

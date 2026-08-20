@@ -1,6 +1,6 @@
 # ADR-0008 — MCP entry point uses the `mcp` gem's public controller pattern
 
-Status: Accepted (2026-08-13)
+Status: Accepted (2026-08-13); partially superseded by [ADR-0013](0013-drop-registry-for-app-owned-tool-list.md) (2026-08-19)
 
 Supersedes: ADR-0006 (the `RailsMcp.serve` per-request mechanism). ADR-0002 (HTTP-only,
 stateless), ADR-0004 (gem ships zero policy), ADR-0005 (identity rides `server_context`), and
@@ -26,13 +26,13 @@ to break on upgrade (ADR-0007).
 The generated `McpController` builds the server and transport **inline on public `mcp` API**:
 
 ```ruby
-server = MCP::Server.new(name: "rails_mcp", tools: RailsMcp.registry.tools, server_context: {user: user})
+server = MCP::Server.new(name: "rails_mcp", tools: RegisteredTools.all, server_context: {user: user})
 transport = MCP::Server::Transports::StreamableHTTPTransport.new(server, stateless: true)
 status, headers, body = transport.handle_request(request)
 ```
 
 `RailsMcp.serve`, `RailsMcp::Mount` (`mount_mcp`, `RailsMcp.rack_app`, the `Router` mixin) are
-**removed**. The gem's only runtime touch inside the request path is `RailsMcp.registry.tools`.
+**removed**. The gem's only runtime touch inside the request path is the app-owned `RegisteredTools.all`.
 The controller keeps its fail-closed `authenticate_acting_user!` seam and remains
 `McpController < ApplicationController` (app-owned). Identity still rides `server_context`
 (ADR-0005); the transport stays stateless (ADR-0002).

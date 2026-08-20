@@ -3,9 +3,12 @@
 Status: Accepted (2026-08-19)
 
 Supersedes: ADR-0009 (registry keyed by tool name) and the spec-0004 `expose!` decision;
-supersedes the registry framing of spec 0001 R10. ADR-0012 (neutral conduit) governs; ADR-0008
-(public controller pattern), ADR-0005 (identity on `server_context`), and ADR-0004 (zero policy)
-stand.
+supersedes the registry framing of spec 0001 R10. Partially supersedes
+[ADR-0007](0007-convenience-without-lock-in.md) (the registry/`expose!`/per-endpoint-`Registry`
+exposure options) and [ADR-0008](0008-controller-uses-mcp-public-pattern.md) (the
+`RailsMcp.registry.tools` runtime touch, now `RegisteredTools.all`). ADR-0012 (neutral conduit)
+governs; ADR-0008 (public controller pattern), ADR-0005 (identity on `server_context`), and
+ADR-0004 (zero policy) stand.
 
 ## Context
 

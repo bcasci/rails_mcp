@@ -112,9 +112,13 @@ every raised message as attacker-readable output:
 
 ## Seam 2 — the `invoke.rails_mcp` notification (R4, audit)
 
-The gem publishes **exactly one** `ActiveSupport::Notifications` event per tool invocation —
-success, denial, or raise — and **persists nothing**. Your app subscribes and writes its own
-audit row.
+The gem publishes **exactly one** `ActiveSupport::Notifications` event per invocation **that
+reaches the tool pipeline** (`RailsMcp::Tool.call`) — success, denial, or raise — and
+**persists nothing**. A `tools/call` the `mcp` gem rejects upstream — schema validation of a
+missing/wrong-typed required arg, or an unknown tool name — returns before the pipeline and
+emits **no** event; to audit those pre-pipeline rejections, use `mcp`'s own
+`around_request`/`exception_reporter` hooks on your `MCP::Configuration`. Your app subscribes
+and writes its own audit row.
 
 - **Event name:** `"invoke.rails_mcp"` — the single canonical name, defined once in code as
   the constant `RailsMcp::Instrumentation::EVENT`. Reference the constant; do not hardcode the
@@ -154,6 +158,27 @@ end
 
 The row is attributed to the real human in `payload[:user]`, never to a generic AI/bot
 identity (R9).
+
+---
+
+## What the client receives (DOC-04)
+
+Three failure/success responses reach the AI client on the wire:
+
+- **Schema rejection** — a `tools/call` with a missing or wrong-typed required arg (or an
+  unknown tool name) is rejected by the `mcp` gem **before the pipeline runs**. The client
+  gets an `mcp`-level error, and **no** `invoke.rails_mcp` event fires (the call never reaches
+  `RailsMcp::Tool.call`). To observe these, use `mcp`'s `around_request`/`exception_reporter`
+  hooks on your `MCP::Configuration`.
+- **`authorize` / `perform` raise** — the `mcp` gem wraps any raise as
+  `"Internal error calling tool <name>: <message>"` (`mcp` `server.rb:798`) and sends that
+  string to the client. The app's `exception_reporter` receives the exception detail, and the
+  one `invoke.rails_mcp` event that fired for this invocation carries the exception on its
+  `error:` payload (a denial via `RailsMcp::NotAuthorized` is one such raise). Because the
+  message is surfaced verbatim, raise only generic messages (see "The error surface is
+  VERBATIM to the AI client" above).
+- **Success** — `perform`'s return value is the tool result; `text_response("ok")` builds the
+  content shape `{ "content": [{ "type": "text", "text": "ok" }], "isError": false }`.
 
 ---
 

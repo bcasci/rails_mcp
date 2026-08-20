@@ -155,8 +155,12 @@ return to permit; on a denial `perform` never runs.
 
 ### Audit (`config/initializers/rails_mcp.rb`)
 
-The gem publishes exactly one `invoke.rails_mcp` event per call and persists nothing.
-Subscribe and write your own row:
+The gem publishes exactly one `invoke.rails_mcp` event per invocation **that reaches the tool
+pipeline** (`RailsMcp::Tool.call`) and persists nothing. A `tools/call` the `mcp` gem rejects
+upstream — schema validation of a missing/wrong-typed required arg, or an unknown tool name —
+returns before the pipeline and emits **no** event; to audit those rejected calls, use `mcp`'s
+own `around_request`/`exception_reporter` hooks on your `MCP::Configuration`. Subscribe and
+write your own row:
 
 ```ruby
 ActiveSupport::Notifications.subscribe(RailsMcp::Instrumentation::EVENT) do |*_args, payload|
@@ -291,10 +295,11 @@ Start the app (`rails s`), export your token, then run the three requests agains
 The route is `match "/mcp", to: "mcp#handle"` — every verb hits the one `handle` action.
 
 Every request sends `Accept: application/json, text/event-stream` — the transport negotiates
-its response type against that header, and a bare `Accept: application/json` can be refused. The
-handshake is ordered: send `initialize` **first**. If a bare `tools/call` returns a
-`"Server not initialized"` error, you skipped `initialize` — send the `initialize` request below
-first, then retry the call.
+its response type against that header, and a bare `Accept: application/json` can be refused.
+With `stateless: true` (the shipped controller, `mcp_controller.rb.tt`) each POST is
+independent and self-contained: there is no session to open, so a lone `tools/call` succeeds
+on its own and `initialize` is **optional**. The `initialize` and `tools/list` requests below
+are shown to illustrate the protocol; you can skip straight to `tools/call`.
 
 ```console
 $ export TOKEN=<the api_token you printed above>
@@ -421,7 +426,9 @@ arg :name, :type, required: false, description: nil
   the return value is the tool result. `perform` may read or write — the gem runs it either way
   and imposes no read/write policy (ADR-0012).
 - `text_response("ok")` builds a text content result equal to `"ok"`.
-- If `perform` raises, the error is surfaced as a tool error and the audit event records it.
+- If `perform` raises, the raise surfaces to the client as `mcp`'s
+  `"Internal error calling tool <name>: <e.message>"` wrapper (not a fidelity-preserving "tool
+  error") and the audit event records the exception.
 - **The raised message reaches the AI client VERBATIM** (SEC-02) — the mcp gem sends
   `Internal error calling tool <name>: <e.message>` straight to the caller. So **raise
   generic messages** and resolve records with `find_by` + your own generic error, **never

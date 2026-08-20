@@ -36,3 +36,17 @@ jobs:
         env:
           BUNDLE_GEMFILE: gemfiles/${{ matrix.gemfile }}
         run: bundle exec rake
+
+      - name: Each test file passes in isolation
+        env:
+          BUNDLE_GEMFILE: gemfiles/${{ matrix.gemfile }}
+        run: |
+          fail=0
+          while IFS= read -r file; do
+            echo "== $file =="
+            if ! bundle exec ruby -Itest "$file"; then
+              echo "ISOLATION FAILURE: $file failed when run alone"
+              fail=1
+            fi
+          done < <(find test -name '*_test.rb' | sort)
+          exit $fail

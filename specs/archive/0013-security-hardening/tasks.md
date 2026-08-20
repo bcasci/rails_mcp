@@ -1,5 +1,13 @@
 # TASKS — Security hardening of taught patterns and controls
 
+Completed Thu Aug 20 00:23:33 EDT 2026 at commit 097200c
+
+- [x] T1 — Secure the taught auth recipe (SEC-01) — DONE
+- [x] T2 — Sanitize client-facing errors; document the verbatim surface (SEC-02) — DONE
+- [x] T3 — Fix stamped `allowed_hosts`; exercise empty-config.hosts (SEC-03) — DONE
+- [x] T4 — Shared `adr:check` rake task with credential + extended-dispatch greps (SEC-04, SEC-05) — DONE
+- [x] T5 — Full gate + spec self-checks — DONE
+
 Task breakdown for spec 0013. Each task owns a DISJOINT set of files. Builds on shipped specs
 0001–0012 (archived). References like `R1` point to this spec's `spec.md`. Findings resolved:
 SEC-01…SEC-05.

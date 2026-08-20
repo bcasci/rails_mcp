@@ -1,6 +1,6 @@
 # ADR-0011 — Host guard stays `allowed_hosts`; reject `dns_rebinding_protection: false` default
 
-Status: Accepted (2026-08-13)
+Status: Superseded by ADR-0014 (2026-08-20)
 
 ## Context
 

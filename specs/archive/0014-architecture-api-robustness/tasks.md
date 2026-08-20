@@ -1,5 +1,9 @@
 # TASKS — architecture & API robustness
 
+Completed Thu Aug 20 00:34:39 EDT 2026 at commit 91bff8e
+
+Status: all tasks DONE (T1–T5 delivered and gated).
+
 Task breakdown for spec 0014. Each task owns a DISJOINT set of files. Builds on shipped specs
 0001–0013 (archived). References like `R1` point to this spec's `spec.md`. Every task is
 `autonomous`.
@@ -12,7 +16,7 @@ all standards amendments.
 
 ## Layer 0 — independent, disjoint-file changes (parallel)
 
-### T1 — Own the explicit-schema flag + effective-schema allow-list + memo invariant note
+### T1 — Own the explicit-schema flag + effective-schema allow-list + memo invariant note — DONE
 **Owns:**
 - `lib/rails_mcp/args.rb` (CHANGED):
   - `input_schema` setter override sets `@explicit_input_schema = true` on the class (R1).
@@ -40,7 +44,7 @@ allow-list is its schema properties; the drift test asserts the public mcp contr
 invariant is documented. No behavior change for `arg`-only tools.
 **Tag:** `autonomous`.
 
-### T2 — Consolidate the error hierarchy into `errors.rb`
+### T2 — Consolidate the error hierarchy into `errors.rb` — DONE
 **Owns:**
 - `lib/rails_mcp/errors.rb` (NEW): `RailsMcp::Error < StandardError` and
   `RailsMcp::NotAuthorized < Error`, with the `NotAuthorized` doc comment carried from `tool.rb`
@@ -65,7 +69,7 @@ inline `Error`; `tool.rb` no longer defines `NotAuthorized`; gem loads clean; fa
 `NotAuthorized` class definition (top of the module) and requires; T3 edits only the
 `text_response` methods. They must land sequentially (see graph) to avoid a merge on that file.
 
-### T4 — Registered-tools guard: stamp warning + guard test; generator + generator test
+### T4 — Registered-tools guard: stamp warning + guard test; generator + generator test — DONE
 **Owns:**
 - `lib/generators/rails_mcp/install/templates/registered_tools.rb.tt` (CHANGED): add a comment
   block stating that only `RailsMcp::Tool` subclasses not overriding `call` carry
@@ -91,7 +95,7 @@ list; the gem still neither warns nor blocks at runtime (guard is a test).
 
 ## Layer 1 — depends on T2 (same file)
 
-### T3 — Collapse `text_response` to the single instance method
+### T3 — Collapse `text_response` to the single instance method — DONE
 **Owns:**
 - `lib/rails_mcp/tool.rb` (CHANGED): remove `def self.text_response(text)`; the instance
   `text_response` builds the response directly:
@@ -112,7 +116,7 @@ existing content-shape assertion passes; no remaining caller of the class form.
 
 ## Layer 2 — gate
 
-### T5 — Full gate + guarantee-intact verification
+### T5 — Full gate + guarantee-intact verification — DONE
 **Owns:**
 - no source files of its own; runs the gate and the spec's own checks (R7).
 

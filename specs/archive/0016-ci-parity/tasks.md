@@ -1,5 +1,7 @@
 # TASKS — CI parity with the litestream-ruby standard
 
+Completed Thu Aug 20 01:04:54 EDT 2026 at commit 5beb62d
+
 Task breakdown for spec 0016. Each task owns a DISJOINT set of edits. This spec touches only
 `.github/workflows/main.yml` (and, only if strictly needed, an already-present build task) — it does
 not touch `lib/`. References like `R1` point to this spec's `spec.md`.
@@ -12,7 +14,7 @@ edit the same file, not because of a logical dependency. T3 is the gate and depe
 
 ## Layer 0 — Workflow edits (sequential on one file, disjoint regions)
 
-### T1 — Cancel superseded CI runs (concurrency)
+### T1 — Cancel superseded CI runs (concurrency) — DONE
 **Owns:**
 - `.github/workflows/main.yml` (CHANGED: add a top-level `concurrency` block only — no change to
   `jobs.build`)
@@ -32,7 +34,7 @@ edit the same file, not because of a logical dependency. T3 is the gate and depe
 litestream `gem-install.yml:2-4`.
 **Tag:** `autonomous`.
 
-### T2 — Build + install + load smoke job (`gem-smoke`)
+### T2 — Build + install + load smoke job (`gem-smoke`) — DONE
 **Owns:**
 - `.github/workflows/main.yml` (CHANGED: add a new `jobs.gem-smoke` job only — no change to
   `jobs.build` or the `concurrency` block from T1)
@@ -70,7 +72,7 @@ leg; YAML parses. Rationale: litestream's build+install+load shape — build in 
 
 ## Layer 1 — Gate (depends on T1, T2)
 
-### T3 — Verify, no-regression, gate
+### T3 — Verify, no-regression, gate — DONE
 **Owns:**
 - (verification only — no new owned files beyond confirming T1/T2 edits)
 

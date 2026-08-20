@@ -435,12 +435,17 @@ class McpRequestFlowTest < Minitest::Test
       refute_includes response.body, "<html",
         "the surfaced error is a JSON-RPC error, not an HTML stack-trace page"
 
-      # The mcp gem's default surface DOES put a developer-detail string in error.data —
-      # asserting it here documents the real, verified boundary (and fails if a future mcp
-      # version moves the detail into error.message, where the generic-message guarantee
-      # would then be broken).
-      assert_includes error.fetch("data").to_s, raw_message,
-        "the mcp gem carries the developer detail in error.data (never in error.message)"
+      # Where mcp places the developer detail in `error.data` is its own internal choice and
+      # varies across `~> 1.1` (1.1.0 echoes the raw string there; 1.2.0 does not) — asserting
+      # its presence pins a dependency internal, not this gem's guarantee. The guarantee, checked
+      # above, is that the raw message never reaches the client-facing `error.message`. What we do
+      # assert about `error.data` is the only security-relevant fact: whatever mcp puts there, it
+      # is not an HTML page or a backtrace.
+      data = error["data"].to_s
+      refute_includes data.downcase, "backtrace",
+        "no backtrace may surface in error.data either"
+      refute_includes data, "<html",
+        "error.data is structured JSON-RPC data, not an HTML stack-trace page"
     end
   end
 

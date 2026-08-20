@@ -15,6 +15,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     name: Ruby ${{ matrix.ruby }} / ${{ matrix.gemfile }}
+    # Job-level so ruby/setup-ruby's bundler-cache installs the SAME per-Rails gemfile
+    # every step uses. Step-scoped BUNDLE_GEMFILE let setup-ruby cache the default
+    # Gemfile, then `bundle exec rake` ran a different gemfile and failed to resolve.
+    env:
+      BUNDLE_GEMFILE: gemfiles/${{ matrix.gemfile }}
     strategy:
       fail-fast: false
       matrix:
@@ -37,13 +42,9 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
       - name: Run the default task
-        env:
-          BUNDLE_GEMFILE: gemfiles/${{ matrix.gemfile }}
         run: bundle exec rake
 
       - name: Each test file passes in isolation
-        env:
-          BUNDLE_GEMFILE: gemfiles/${{ matrix.gemfile }}
         run: |
           fail=0
           while IFS= read -r file; do

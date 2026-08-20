@@ -7,8 +7,8 @@
 # inline grep block: the hook and CI now run the identical check, and there is no
 # grep duplicated between them.
 #
-# The checks are the standing machine-checkable ADR constraints:
-#   - no debugger (`binding.pry`/`binding.irb`) left in gem code (ADR-0004)
+# The checks are the standing machine-checkable ADR constraints a LINTER does NOT catch
+# (debugger detection is left to standardrb's Lint/Debugger, which runs in the same gate):
 #   - no arbitrary-Ruby eval-family (ADR-0004: allow-list only, no console)
 #   - no extended dynamic dispatch that turns an AI-supplied string into a class or
 #     method — `constantize`, `const_get`, `public_send`, bareword `.send(` (SEC-05)

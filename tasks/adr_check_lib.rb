@@ -17,12 +17,10 @@ module RailsMcp
     # Named checks. Each: a human name, the patterns that constitute a violation, and
     # the file set the check applies to (`:lib` = gem Ruby under lib/; `:credentialed`
     # = lib/ plus stamped generator templates).
+    # Debugger detection (`binding.pry`/`binding.irb`) is intentionally NOT here: it is
+    # scope :lib only and fully covered by standardrb's Lint/Debugger, which runs in the
+    # same `rake default`. This file enforces only constraints a linter does NOT catch.
     CHECKS = [
-      {
-        name: "debugger",
-        scope: :lib,
-        patterns: [/binding\.(?:pry|irb)/]
-      },
       {
         name: "eval-family",
         scope: :lib,

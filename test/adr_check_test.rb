@@ -145,11 +145,7 @@ class AdrCheckTest < Minitest::Test
     assert_includes checks_hit(run_check(lib_body: body)), "policy-tenant"
   end
 
-  # Existing constraints preserved: a debugger left in lib/ is a violation.
-  def test_debugger_is_flagged
-    body = "module RailsMcp; class S; def c; binding.pry; end; end; end\n"
-    assert_includes checks_hit(run_check(lib_body: body)), "debugger"
-  end
+  # Debugger detection is standardrb's Lint/Debugger, not adr:check (removed as redundant).
 
   # Existing constraints preserved: eval-family is a violation.
   def test_eval_family_is_flagged

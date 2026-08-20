@@ -37,16 +37,7 @@ class TestRailsMcp < Minitest::Test
     refute_nil dep, "expected a development dependency on `rails`"
   end
 
-  # R12 / ADR-0001: no hand-rolled JSON-RPC or transport in the gem — the
-  # protocol layer is delegated to the official `mcp` gem.
-  def test_gem_ships_no_hand_rolled_jsonrpc_or_transport
-    lib_dir = File.expand_path("../lib", __dir__)
-    offenders = Dir.glob(File.join(lib_dir, "**", "*.rb")).select do |path|
-      code = File.read(path).each_line.reject { |l| l.strip.start_with?("#") }.join
-      code.match?(/\b(class|module)\s+\w*(JsonRpc|JSONRPC|Transport)\b/) ||
-        code.match?(/"jsonrpc"|'jsonrpc'/)
-    end
-    assert_empty offenders,
-      "gem must delegate JSON-RPC/transport to `mcp`, found: #{offenders.inspect}"
-  end
+  # NOTE: the no-hand-rolled-JSON-RPC/transport grep (ADR-0001) moved to
+  # test/adr_constraints_test.rb, where the ADR source-grep guards live together
+  # (SPEC 0011 R9).
 end

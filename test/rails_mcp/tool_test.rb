@@ -172,6 +172,56 @@ class RailsMcp::ToolTest < Minitest::Test
     assert_instance_of RailsMcp::NotAuthorized, @events.first.payload[:error]
   end
 
+  # --- RailsMcp::Tool boundary: the gem's guarantees are scoped to its own tools ---
+  #
+  # R9 (ADR-0004, ADR-0013): the authorize/audit guarantees live in `RailsMcp::Tool.call`.
+  # A raw `MCP::Tool` served straight on `MCP::Server` is OUTSIDE that boundary — the gem
+  # neither wraps nor audits a tool it does not own. The served `tools:` array is itself the
+  # allow-list (the app owns the list it hands `MCP::Server`). These exercise the real
+  # `MCP::Server` JSON-RPC path rather than stubbing, per docs/conventions.md.
+
+  # A plain `MCP::Tool` (NOT a `RailsMcp::Tool`) — the escape hatch. No `authorize`, no
+  # audit wrapping; its `call` just returns a result.
+  def raw_tool
+    Class.new(MCP::Tool) do
+      tool_name "raw_ping"
+      description "a raw MCP::Tool outside the gem pipeline"
+      input_schema(properties: {}, required: [])
+      def self.call(**_arguments)
+        MCP::Tool::Response.new([{type: "text", text: "pong"}])
+      end
+    end
+  end
+
+  # Serve a set of tools on a real MCP::Server and return the parsed JSON-RPC result.
+  def serve(tools, method:, params: {})
+    server = MCP::Server.new(name: "test", tools: tools, server_context: {user: :staff})
+    server.handle({jsonrpc: "2.0", id: 1, method: method, params: params})
+  end
+
+  # R9 (ADR-0004): a raw `MCP::Tool` served on `MCP::Server` runs unaudited — it is not a
+  # `RailsMcp::Tool`, so `RailsMcp::Tool.call` never wraps it and no `invoke.rails_mcp`
+  # event fires. The gem's audit boundary is its own Tool, not any served tool.
+  def test_raw_mcp_tool_runs_unaudited_outside_the_tool_boundary
+    result = serve([raw_tool], method: "tools/call", params: {name: "raw_ping", arguments: {}})
+
+    assert_equal [{type: "text", text: "pong"}], result[:result][:content]
+    assert_empty @events, "a raw MCP::Tool is outside RailsMcp::Tool and must not emit the audit event"
+  end
+
+  # R9 (ADR-0013): the plain `tools:` array handed to `MCP::Server` IS the allow-list —
+  # a `tools/call` for a name not in the served array is refused by `mcp`, no gem code
+  # involved. The app owns the callable surface by naming classes in its own list.
+  def test_served_tools_array_is_the_allow_list
+    listed = serve([echo_tool], method: "tools/call",
+      params: {name: "echo", arguments: {household_id: 5}})
+    assert_equal [{type: "text", text: "household 5"}], listed[:result][:content]
+
+    refused = serve([echo_tool], method: "tools/call",
+      params: {name: "not_listed", arguments: {}})
+    refute_nil refused[:error], "mcp must refuse a call for a name outside the served array"
+  end
+
   # --- mixins present (T1 args, T2 annotations wired into the base class) ---
 
   # R1: the args DSL is available on subclasses and builds the input schema.

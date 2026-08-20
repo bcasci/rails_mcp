@@ -36,10 +36,13 @@ module RailsMcp
         # The forms an app tool would use to turn an AI-supplied string into a class
         # or method (SEC-05). Bareword `.send(` is forbidden — the two known-safe
         # fixed-symbol sites use `__send__` (tool.rb:43, args.rb:119).
+        # `public_send` is flagged on ANY receiver, including implicit self: a
+        # bareword `public_send(params[:m])` inside a tool's `perform` has no leading
+        # dot, so a word-boundary match (not a `.`-anchored one) is required.
         patterns: [
           /\.constantize\b/,
           /\bconst_get\b/,
-          /\.public_send\b/,
+          /\bpublic_send\b/,
           /\.send\(/
         ]
       },

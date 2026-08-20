@@ -78,9 +78,17 @@ class AdrCheckTest < Minitest::Test
     assert_includes checks_hit(run_check(lib_body: body)), "dynamic-dispatch"
   end
 
-  # R5: `public_send` is a violation.
+  # R5: `public_send` on a receiver is a violation.
   def test_public_send_is_flagged
     body = "module RailsMcp; class S; def c; obj.public_send(y); end; end; end\n"
+    assert_includes checks_hit(run_check(lib_body: body)), "dynamic-dispatch"
+  end
+
+  # R5: bareword `public_send` on implicit self (no leading dot) is a violation —
+  # the natural form inside a tool's `perform`. (REVIEW.md:14 names public_send
+  # unqualified.)
+  def test_bareword_public_send_is_flagged
+    body = "module RailsMcp; class S; def c; public_send(params[:m]); end; end; end\n"
     assert_includes checks_hit(run_check(lib_body: body)), "dynamic-dispatch"
   end
 

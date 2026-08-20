@@ -53,6 +53,15 @@ module RailsMcp
         template "example_tests.rb.tt", "test/mcp/example_read_only_tool_test.rb"
       end
 
+      # The RegisteredTools guard test (spec 0014 R3): fails if any listed tool is not a
+      # RailsMcp::Tool subclass or overrides `call` (bypassing authorize/audit/allow-list)
+      # unless the app signs off via ALLOWLISTED_RAW_TOOLS — making a raw tool a visible,
+      # deliberate exception rather than a silent one. Opt-in and app-side; the gem still
+      # neither warns nor blocks at runtime (ADR-0004, ADR-0007).
+      def create_registered_tools_guard_test
+        template "registered_tools_guard_test.rb.tt", "test/mcp/registered_tools_guard_test.rb"
+      end
+
       # The app-owned, fail-closed McpController in front of the /mcp endpoint
       # (spec 0002 R2). Inherits ApplicationController so it reuses the app's own
       # auth stack; its authentication seam raises by default until wired.

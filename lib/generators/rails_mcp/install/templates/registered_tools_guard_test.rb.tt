@@ -1,0 +1,42 @@
+# frozen_string_literal: true
+
+require "test_helper"
+
+# RegisteredTools guard — APP-OWNED, edit to fit your suite.
+#
+# Every tool in RegisteredTools.all must carry the rails_mcp guarantees: fail-closed
+# `authorize`, one `invoke.rails_mcp` audit event per call, and the args allow-list.
+# Those all live in `RailsMcp::Tool.call`, so an entry earns them ONLY if it is a
+# `RailsMcp::Tool` subclass that does NOT override `call`. A bare `MCP::Tool`, or a
+# subclass that overrides `call`, runs UNAUDITED and UNGATED.
+#
+# The gem does not forbid such a tool (it neither warns nor blocks at runtime) — but it
+# should be a deliberate, visible exception, not a silent one. This guard fails on any
+# unguaranteed entry until you add it to ALLOWLISTED_RAW_TOOLS below, so taking on a raw
+# tool is a one-line, reviewable diff.
+class RegisteredToolsGuardTest < ActiveSupport::TestCase
+  # Tool classes you have DELIBERATELY chosen to run unaudited/ungated. Empty by default:
+  # adding an entry here is your explicit sign-off that this tool bypasses the guarantees.
+  ALLOWLISTED_RAW_TOOLS = [].freeze
+
+  # An entry is guaranteed only if it is a RailsMcp::Tool subclass whose `call` is still
+  # RailsMcp::Tool's own (not overridden by the subclass or an intervening class). `call`
+  # is a class method, so its owner is RailsMcp::Tool's singleton class; a subclass that
+  # overrides `self.call` owns it on its own singleton class instead.
+  def guaranteed?(tool_class)
+    tool_class.is_a?(Class) &&
+      tool_class < RailsMcp::Tool &&
+      tool_class.method(:call).owner == RailsMcp::Tool.singleton_class
+  end
+
+  test "every registered tool carries the authorize/audit/allow-list guarantees" do
+    RegisteredTools.all.each do |tool_class|
+      next if ALLOWLISTED_RAW_TOOLS.include?(tool_class)
+
+      assert guaranteed?(tool_class),
+        "#{tool_class} in RegisteredTools.all is a bare MCP::Tool or overrides `call`, so it " \
+        "runs unaudited and ungated. Either make it a RailsMcp::Tool subclass that does not " \
+        "override `call`, or add it to ALLOWLISTED_RAW_TOOLS to sign off on the exception."
+    end
+  end
+end

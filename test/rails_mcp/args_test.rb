@@ -192,4 +192,62 @@ class ArgsTest < Minitest::Test
 
     assert_equal({q: {type: "string"}}, tool.input_schema.to_h[:properties])
   end
+
+  # --- R1: rails_mcp owns the explicit-schema flag (ARCH-01) -------------------
+
+  # R1: the raw `input_schema` setter records rails_mcp's own flag — true after the
+  # setter runs, without reading `mcp`'s private `@input_schema_value` ivar.
+  def test_explicitly_set_input_schema_is_true_after_the_raw_setter
+    tool = build_mcp_tool do
+      input_schema(properties: {q: {type: "string"}}, required: ["q"])
+    end
+
+    assert tool.send(:explicitly_set_input_schema?)
+  end
+
+  # R1: an `arg`-only tool did not set a raw schema — the flag is false.
+  def test_explicitly_set_input_schema_is_false_for_an_arg_only_tool
+    tool = build_mcp_tool { arg :household_id, :integer, required: true }
+
+    refute tool.send(:explicitly_set_input_schema?)
+  end
+
+  # R1: a tool with neither `arg` nor a raw schema — the flag is false.
+  def test_explicitly_set_input_schema_is_false_when_nothing_declared
+    tool = build_mcp_tool
+
+    refute tool.send(:explicitly_set_input_schema?)
+  end
+
+  # --- R2: the effective allow-list is the raw schema's property keys ----------
+
+  # R2: for a raw-schema tool the effective allow-list is that schema's property keys
+  # (as symbols), not the empty `arg` set.
+  def test_effective_allow_list_is_the_raw_schema_property_keys
+    tool = build_mcp_tool do
+      input_schema(properties: {q: {type: "string"}, page: {type: "integer"}}, required: ["q"])
+    end
+
+    assert_equal [:q, :page], tool.send(:effective_arg_names)
+  end
+
+  # R2: for an `arg`-only tool the effective allow-list is the declared arg names
+  # (unchanged from spec 0001).
+  def test_effective_allow_list_is_declared_arg_names_for_an_arg_only_tool
+    tool = build_mcp_tool { arg :household_id, :integer, required: true }
+
+    assert_equal [:household_id], tool.send(:effective_arg_names)
+  end
+
+  # R2: a raw-schema tool round-trips its declared property and drops undeclared args
+  # through `declared_arguments` (the allow-list is the effective schema's keys).
+  def test_raw_schema_tool_round_trips_declared_property_and_drops_undeclared
+    tool = build_mcp_tool do
+      input_schema(properties: {q: {type: "string"}}, required: ["q"])
+    end
+
+    filtered = tool.declared_arguments("q" => "hello", "z" => 1)
+
+    assert_equal({q: "hello"}, filtered)
+  end
 end

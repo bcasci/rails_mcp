@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "rails_mcp/version"
+require_relative "rails_mcp/errors"
 
 # `rails_mcp` — a thin conventions-and-seams layer over the official `mcp` gem
 # that exposes a hand-picked allow-list of Rails app actions to an AI client
@@ -8,9 +9,9 @@ require_relative "rails_mcp/version"
 # `invoke.rails_mcp` notification); each app owns authorization, audit, and
 # identity (ADR-0004). Protocol plumbing — JSON-RPC, the Rack
 # transport, tool schemas, and annotations — is delegated to `mcp` (ADR-0001).
-module RailsMcp
-  class Error < StandardError; end
-end
+#
+# The exception hierarchy (`Error` and its subclasses) lives in
+# `rails_mcp/errors` and is required first (ARCH-04).
 
 # Submodule wiring. Each later task owns its own file under lib/rails_mcp/ and is
 # loaded from here; T0 stamps these lines up front so no later task edits this

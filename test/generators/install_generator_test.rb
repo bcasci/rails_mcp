@@ -420,6 +420,95 @@ class InstallGeneratorTest < Rails::Generators::TestCase
     end
   end
 
+  # === spec 0014 R3 — raw-tool guard: warning comment + stamped guard test =====
+
+  # R3: registered_tools.rb carries a comment stating only RailsMcp::Tool subclasses
+  # that do not override `call` carry authorize/audit/allow-list, and that a bare
+  # MCP::Tool or a `call` override runs unaudited/ungated — a deliberate, app-owned
+  # exception.
+  def test_registered_tools_stamps_raw_tool_warning_comment
+    with_routes_file
+    run_generator
+    assert_file "app/mcp/registered_tools.rb" do |content|
+      assert_match(/RailsMcp::Tool`? subclass/, content,
+        "the warning must name RailsMcp::Tool subclasses as the guaranteed form")
+      assert_match(/override.*\bcall\b/i, content,
+        "the warning must call out a `call` override as bypassing the guarantees")
+      assert_match(/unaudited|ungated|bypass/i, content,
+        "the warning must state a bare MCP::Tool / call override runs unaudited and ungated")
+      assert_match(/deliberate|app-owned|your own|exception/i, content,
+        "the warning must frame the raw tool as a deliberate, app-owned exception")
+    end
+  end
+
+  # R3: the generator stamps a guard test file that iterates RegisteredTools.all.
+  def test_stamps_registered_tools_guard_test
+    with_routes_file
+    run_generator
+    assert_file "test/mcp/registered_tools_guard_test.rb" do |content|
+      assert_match(/RegisteredTools\.all/, content,
+        "the guard test must iterate RegisteredTools.all")
+    end
+  end
+
+  # R3: the guard test carries an empty-by-default in-test ALLOWLISTED_RAW_TOOLS so
+  # adding a raw tool forces the author to add it, making the exception diff-visible.
+  def test_guard_test_has_empty_default_raw_tool_allowlist
+    with_routes_file
+    run_generator
+    assert_file "test/mcp/registered_tools_guard_test.rb" do |content|
+      assert_match(/ALLOWLISTED_RAW_TOOLS\s*=\s*\[\s*\]/, content,
+        "the guard test must define an empty-by-default ALLOWLISTED_RAW_TOOLS")
+    end
+  end
+
+  # R3: the guard flags a non-RailsMcp::Tool subclass or a `call` override, keying its
+  # check on subclass-of-RailsMcp::Tool and on the owner of the `call` method.
+  def test_guard_test_checks_subclass_and_call_override
+    with_routes_file
+    run_generator
+    assert_file "test/mcp/registered_tools_guard_test.rb" do |content|
+      assert_match(/RailsMcp::Tool/, content,
+        "the guard must test subclass-of RailsMcp::Tool")
+      assert_match(/method\(:call\)\.owner|:call.*owner|owner.*:call/, content,
+        "the guard must detect a `call` override via the method owner")
+    end
+  end
+
+  # R3: the stamped guard test in its default form passes — the default list holds only
+  # ExampleReadOnlyTool, a gated RailsMcp::Tool subclass that does not override `call`.
+  def test_stamped_guard_test_passes_for_default_list
+    with_routes_file
+    run_generator
+
+    stamped = File.read("#{destination_root}/test/mcp/registered_tools_guard_test.rb")
+
+    # Minimal doubles standing in for the app-loaded constants the guard references.
+    example_tool = Class.new(RailsMcp::Tool)
+    registered = Module.new do
+      define_singleton_method(:all) { [example_tool] }
+    end
+
+    sandbox = Module.new
+    sandbox.const_set(:RegisteredTools, registered)
+    sandbox.const_set(:ExampleReadOnlyTool, example_tool)
+
+    # Strip the `require "test_helper"` (not on the load path here) and evaluate the
+    # stamped test body inside the sandbox so it resolves the app constants.
+    body = stamped.sub(/^\s*require "test_helper"\s*$/, "")
+    sandbox.module_eval(body)
+
+    guard = sandbox.constants
+      .map { |c| sandbox.const_get(c) }
+      .find { |c| c.is_a?(Class) && c < Minitest::Test }
+    refute_nil guard, "the stamped file must define a Minitest test class"
+
+    guard.runnable_methods.each do |m|
+      result = guard.new(m).run
+      assert result.passed?, "default-list guard test #{m} must pass: #{result.failures.map(&:message).join("; ")}"
+    end
+  end
+
   # === spec 0011 R8 — doc-vs-template drift guards (migrated) ==================
   #
   # These two assertions are the only residue kept from the deleted doc-prose

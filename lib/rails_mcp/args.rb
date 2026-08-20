@@ -54,12 +54,17 @@ module RailsMcp
     #   input_schema                          # getter — the advertised schema
     #
     # As a setter it delegates to the official gem's `input_schema` macro (the tool
-    # is an `MCP::Tool`), recording an explicit `@input_schema_value`. As a getter it
+    # is an `MCP::Tool`), recording an explicit value, and records rails_mcp's own
+    # `@explicit_input_schema = true` flag so the distinction rests on rails_mcp state,
+    # not on `mcp`'s private schema ivar (ARCH-01). As a getter it
     # returns that explicit value when one was set; otherwise it builds the schema
     # from the declared `arg`s (spec 0001 R1, unchanged). An explicit schema wins over
     # `arg` — the explicit value is the escape hatch (R1 DECIDED, ADR-0007).
     def input_schema(*args)
-      return super unless args.empty? # setter → the gem's macro sets the explicit value
+      unless args.empty? # setter → the gem's macro sets the explicit value
+        @explicit_input_schema = true
+        return super
+      end
 
       explicitly_set_input_schema? ? super : built_input_schema
     end
@@ -75,12 +80,25 @@ module RailsMcp
       built_input_schema
     end
 
-    # Filter incoming arguments to only the declared ones, returning a symbol-keyed
-    # hash suitable for `perform(**args)`. Undeclared args are dropped so the AI can
-    # never smuggle an argument the tool did not declare (R1 allow-list on args).
-    # Accepts string or symbol keys (the wire delivers JSON string keys).
+    # The allow-list `declared_arguments` filters against: the tool's **effective**
+    # input schema's property keys, not only its `arg` declarations (ARCH-02). When a
+    # tool set a raw `input_schema`, the allow-list is that schema's `properties` keys
+    # (as symbols) so the tool round-trips its declared properties to `perform`;
+    # otherwise it is the `arg`-declared names. Undeclared args are dropped either way.
+    def effective_arg_names
+      if explicitly_set_input_schema?
+        (input_schema.to_h[:properties] || {}).keys.map(&:to_sym)
+      else
+        declared_arg_names
+      end
+    end
+
+    # Filter incoming arguments to only the effective-schema ones, returning a
+    # symbol-keyed hash suitable for `perform(**args)`. Undeclared args are dropped so
+    # the AI can never smuggle an argument the tool did not declare (R1 allow-list on
+    # args). Accepts string or symbol keys (the wire delivers JSON string keys).
     def declared_arguments(arguments)
-      names = declared_arg_names
+      names = effective_arg_names
       arguments.each_with_object({}) do |(key, value), kept|
         name = key.to_sym
         kept[name] = value if names.include?(name)
@@ -89,16 +107,24 @@ module RailsMcp
 
     private
 
-    # True when the tool set a raw schema via the `input_schema(...)` macro. Reads the
-    # gem's `@input_schema_value` ivar directly (the macro's storage). Guards on the
-    # accessor so the mixin still works when extended onto a plain class in isolation
-    # (a non-`MCP::Tool` test double has no `input_schema_value`).
+    # True when the tool set a raw schema via the `input_schema(...)` macro. Reads
+    # rails_mcp's own `@explicit_input_schema` flag, set by the setter override, rather
+    # than `mcp`'s private schema ivar (ARCH-01) — the distinction the
+    # gem needs is not expressible through `mcp`'s public surface, so rails_mcp tracks
+    # it in its own state. The R1 drift test pins the public `mcp` behavior relied on.
     def explicitly_set_input_schema?
-      respond_to?(:input_schema_value, true) && !instance_variable_get(:@input_schema_value).nil?
+      @explicit_input_schema == true
     end
 
     # The `MCP::Tool::InputSchema` built from the declared `arg`s. Memoized; the memo
     # is invalidated whenever a new `arg` is declared.
+    #
+    # Memo invariant (ARCH-05): the class-level DSL calls — `arg`, `read_only!`, and
+    # the `input_schema` setter — run at class-definition/boot time only. They are the
+    # only writers of the memoized `@built_input_schema` / `@arg_definitions` (and the
+    # `@explicit_input_schema` flag). The memo's thread-safety relies on those writes
+    # completing before any concurrent request-time read; do not mutate this class
+    # state at request time.
     def built_input_schema
       @built_input_schema ||= begin
         properties = {}

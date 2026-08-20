@@ -12,6 +12,15 @@
 #
 # `.all` is called per request so the classes are named fresh each time — safe across
 # a Zeitwerk dev reload (no cached, stale class objects).
+#
+# WHAT CARRIES THE GUARANTEES: only a `RailsMcp::Tool` subclass that does NOT override
+# `call` carries the authorize + audit + args allow-list guarantees — they all live in
+# `RailsMcp::Tool.call`. Listing a bare `MCP::Tool`, or a subclass that overrides `call`,
+# runs that tool UNAUDITED and UNGATED (no fail-closed authorize, no one-event audit, no
+# undeclared-arg dropping). That is allowed — the gem neither warns nor blocks — but it is
+# a deliberate, app-owned exception you take on knowingly. The stamped guard test
+# (test/mcp/registered_tools_guard_test.rb) fails on such an entry until you list it in
+# its ALLOWLISTED_RAW_TOOLS, so the exception shows up in a diff instead of silently.
 module RegisteredTools
   def self.all
     [
